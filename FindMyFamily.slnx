@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="FindMyFamily.Api/FindMyFamily.Api.csproj" />
+  <Project Path="FindMyFamily.Core/FindMyFamily.Core.csproj" />
+  <Project Path="FindMyFamily.Infrastructure/FindMyFamily.Infrastructure.csproj" />
+</Solution>

@@ -1,0 +1,63 @@
+Project FindMyFamily {
+  database_type: 'PostgreSQL'
+  Note: 'Esquema core para localización familiar bajo demanda'
+}
+
+Table users {
+  id uuid [primary key]
+  first_name varchar(50)
+  last_name varchar(50)
+  phone_number varchar [unique, note: 'Mandatorio para inicio de sesion']
+  password_hash varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table devices {
+  id uuid [primary key]
+  user_id uuid [not null] 
+  fcm_token varchar [note: 'Token de Firebase para despertar el celular (Silent Push)']
+  refresh_token varchar [note: 'Para mantener la sesión activa infinitamente']
+  refresh_token_expiry timestamp
+  device_model varchar [note: 'Ej: Samsung Galaxy S23']
+  last_active_at timestamp
+  is_active boolean [default: true]
+}
+
+Table families {
+  id uuid [primary key]
+  name varchar [note: 'Ej: Familia Castro']
+  created_at timestamp
+}
+
+Table family_members {
+  family_id uuid [not null]
+  user_id uuid [not null]
+  role varchar [note: 'admin, member']
+  joined_at timestamp
+  
+  indexes {
+    (family_id, user_id) [unique]
+  }
+}
+
+Table locations {
+  id uuid [primary key]
+  user_id uuid [not null]
+  latitude decimal(10, 8)
+  longitude decimal(11, 8)
+  captured_at timestamp [note: 'Hora exacta en que el GPS tomó el dato']
+  
+  indexes {
+    user_id
+    captured_at
+  }
+}
+
+// --------------------------------------------------------
+// RELACIONES 
+// --------------------------------------------------------
+Ref: devices.user_id > users.id
+Ref: family_members.family_id > families.id
+Ref: family_members.user_id > users.id
+Ref: locations.user_id > users.id

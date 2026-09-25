@@ -1,0 +1,6 @@
+@FindMyFamily.Api_HostAddress = http://localhost:5210
+
+GET {{FindMyFamily.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
