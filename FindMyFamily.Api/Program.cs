@@ -1,7 +1,10 @@
 using System.Text;
 using DotNetEnv;
+using FindMyFamily.Api.Hubs;
 using FindMyFamily.Api.Middlewares;
+using FindMyFamily.Api.Services;
 using FindMyFamily.Core;
+using FindMyFamily.Core.Interfaces.Services;
 using FindMyFamily.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -16,7 +19,11 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddCore();
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// 3. Controladores y Swagger con soporte para JWT Bearer
+// 3. SignalR y Notificador en Tiempo Real
+builder.Services.AddSignalR();
+builder.Services.AddScoped<ILocationRealtimeNotifier, SignalRLocationNotifier>();
+
+// 4. Controladores y Swagger con soporte para JWT Bearer
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -43,7 +50,7 @@ builder.Services.AddSwaggerGen(options =>
     options.AddSecurityRequirement(doc => securityRequirement);
 });
 
-// 4. Configuración de Autenticación JWT
+// 5. Configuración de Autenticación JWT (con soporte para WebSockets / SignalR)
 var jwtSecret = builder.Configuration["JWT_SECRET"]
     ?? throw new InvalidOperationException("JWT_SECRET is not configured.");
 var jwtIssuer = builder.Configuration["JWT_ISSUER"] ?? "FindMyFamilyApi";
@@ -68,16 +75,31 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         ClockSkew = TimeSpan.Zero
     };
+
+    // Permite autenticar conexiones de SignalR vía Query String (?access_token=...)
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// 5. Middleware global de excepciones
+// 6. Middleware global de excepciones
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// 6. Configuración de Swagger UI
+// 7. Configuración de Swagger UI
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -95,9 +117,13 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// 8. Endpoints de SignalR Hubs
+app.MapHub<LocationHub>("/hubs/location");
+
 app.MapGet("/", () => Results.Ok(new { 
     message = "FindMyFamily API is running",
-    swagger = "/swagger"
+    swagger = "/swagger",
+    signalr = "/hubs/location"
 }))
 .WithName("Root");
 

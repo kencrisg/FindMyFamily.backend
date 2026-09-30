@@ -3,6 +3,7 @@ using FindMyFamily.Core.Interfaces.Services;
 using FindMyFamily.Infrastructure.Persistence;
 using FindMyFamily.Infrastructure.Persistence.Repositories;
 using FindMyFamily.Infrastructure.Security;
+using FindMyFamily.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,8 +22,8 @@ public static class DependencyInjection
             var host = configuration["DB_HOST"] ?? "localhost";
             var port = configuration["DB_PORT"] ?? "5432";
             var database = configuration["DB_NAME"] ?? "findmyfamilydb";
-            var username = configuration["DB_USER"] ?? "postgres";
-            var password = configuration["DB_PASSWORD"] ?? "passwordpostgres";
+            var username = configuration["DB_USER"] ?? "user";
+            var password = configuration["DB_PASSWORD"] ?? "password";
 
             connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password}";
         }
@@ -40,6 +41,7 @@ public static class DependencyInjection
         // 3. Servicios de Seguridad e Infraestructura
         services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+        services.AddSingleton<IPushNotificationService, FirebasePushNotificationService>();
 
         return services;
     }

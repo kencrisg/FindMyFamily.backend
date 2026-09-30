@@ -1,7 +1,9 @@
 @FindMyFamily.Api_HostAddress = http://localhost:5000
 @authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+@familyId = 265063bd-efbf-4d54-93c0-4c9b634de51f
+@targetUserId = a50b0f89-40c3-464e-a9e6-2c47e5564419
 
-### 1. Health check
+### 1. Health check & Swagger
 GET {{FindMyFamily.Api_HostAddress}}/
 Accept: application/json
 
@@ -19,7 +21,7 @@ Content-Type: application/json
   "phoneNumber": "+593999999999",
   "password": "Password123*",
   "deviceModel": "Pixel 8 Pro",
-  "fcmToken": "dummy_fcm_token_123"
+  "fcmToken": "ken_fcm_token"
 }
 
 ### 3. Iniciar sesión
@@ -30,7 +32,7 @@ Content-Type: application/json
   "phoneNumber": "+593999999999",
   "password": "Password123*",
   "deviceModel": "Pixel 8 Pro",
-  "fcmToken": "dummy_fcm_token_123"
+  "fcmToken": "ken_fcm_token"
 }
 
 ### 4. Renovar Token (Refresh Token)
@@ -40,7 +42,7 @@ Content-Type: application/json
 {
   "refreshToken": "u0ikORydu2EHnAd8vnvIbWpF8LVm+aMpQbs08QpsMlXOPGcr+bUVVVuXEduo5t7pRDBm3aVOms1lqfgcZjP0ew==",
   "deviceModel": "Pixel 8 Pro",
-  "fcmToken": "dummy_fcm_token_123"
+  "fcmToken": "ken_fcm_token"
 }
 
 ### ========================================================
@@ -62,12 +64,12 @@ Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### 7. Obtener Detalle de Grupo Familiar por ID
-GET {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f
+GET {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}
 Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### 8. Añadir Miembro por Número de Teléfono
-POST {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f/members
+POST {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
@@ -77,7 +79,7 @@ Content-Type: application/json
 }
 
 ### 9. Actualizar Rol de un Miembro
-PUT {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f/members/a50b0f89-40c3-464e-a9e6-2c47e5564419/role
+PUT {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members/{{targetUserId}}/role
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
@@ -86,5 +88,39 @@ Content-Type: application/json
 }
 
 ### 10. Eliminar Miembro o Salir del Grupo
-DELETE {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f/members/a50b0f89-40c3-464e-a9e6-2c47e5564419
+DELETE {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members/{{targetUserId}}
 Authorization: Bearer {{authToken}}
+
+### ========================================================
+### MÓDULO DE LOCALIZACIÓN ON-DEMAND (FCM & SIGNALR)
+### ========================================================
+
+### 11. Solicitar Ubicación On-Demand (Emite Silent Push a través de FCM)
+POST {{FindMyFamily.Api_HostAddress}}/api/locations/request
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "familyId": "{{familyId}}",
+  "targetUserId": "{{targetUserId}}"
+}
+
+### 12. Reportar Ubicación GPS (Respuesta del dispositivo destino al despertar)
+POST {{FindMyFamily.Api_HostAddress}}/api/locations/report
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "latitude": -0.180653,
+  "longitude": -78.467834
+}
+
+### 13. Consultar Última Ubicación de un Familiar
+GET {{FindMyFamily.Api_HostAddress}}/api/locations/families/{{familyId}}/users/{{targetUserId}}/latest
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 14. Consultar Historial de Ubicaciones
+GET {{FindMyFamily.Api_HostAddress}}/api/locations/families/{{familyId}}/users/{{targetUserId}}/history?limit=20
+Authorization: Bearer {{authToken}}
+Accept: application/json
