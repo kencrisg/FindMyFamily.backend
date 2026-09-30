@@ -1,6 +1,90 @@
-@FindMyFamily.Api_HostAddress = http://localhost:5210
+@FindMyFamily.Api_HostAddress = http://localhost:5000
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
-GET {{FindMyFamily.Api_HostAddress}}/weatherforecast/
+### 1. Health check
+GET {{FindMyFamily.Api_HostAddress}}/
 Accept: application/json
 
-###
+### ========================================================
+### MÓDULO DE AUTENTICACIÓN
+### ========================================================
+
+### 2. Registrar usuario (Admin)
+POST {{FindMyFamily.Api_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "firstName": "Ken",
+  "lastName": "Castro",
+  "phoneNumber": "+593999999999",
+  "password": "Password123*",
+  "deviceModel": "Pixel 8 Pro",
+  "fcmToken": "dummy_fcm_token_123"
+}
+
+### 3. Iniciar sesión
+POST {{FindMyFamily.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "phoneNumber": "+593999999999",
+  "password": "Password123*",
+  "deviceModel": "Pixel 8 Pro",
+  "fcmToken": "dummy_fcm_token_123"
+}
+
+### 4. Renovar Token (Refresh Token)
+POST {{FindMyFamily.Api_HostAddress}}/api/auth/refresh-token
+Content-Type: application/json
+
+{
+  "refreshToken": "u0ikORydu2EHnAd8vnvIbWpF8LVm+aMpQbs08QpsMlXOPGcr+bUVVVuXEduo5t7pRDBm3aVOms1lqfgcZjP0ew==",
+  "deviceModel": "Pixel 8 Pro",
+  "fcmToken": "dummy_fcm_token_123"
+}
+
+### ========================================================
+### MÓDULO DE FAMILIAS Y MIEMBROS
+### ========================================================
+
+### 5. Crear Grupo Familiar
+POST {{FindMyFamily.Api_HostAddress}}/api/families
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "Familia Castro"
+}
+
+### 6. Listar mis Grupos Familiares
+GET {{FindMyFamily.Api_HostAddress}}/api/families
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 7. Obtener Detalle de Grupo Familiar por ID
+GET {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 8. Añadir Miembro por Número de Teléfono
+POST {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f/members
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "phoneNumber": "+593988888888",
+  "role": "member"
+}
+
+### 9. Actualizar Rol de un Miembro
+PUT {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f/members/a50b0f89-40c3-464e-a9e6-2c47e5564419/role
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "role": "admin"
+}
+
+### 10. Eliminar Miembro o Salir del Grupo
+DELETE {{FindMyFamily.Api_HostAddress}}/api/families/265063bd-efbf-4d54-93c0-4c9b634de51f/members/a50b0f89-40c3-464e-a9e6-2c47e5564419
+Authorization: Bearer {{authToken}}
