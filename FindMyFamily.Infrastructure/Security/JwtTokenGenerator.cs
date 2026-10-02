@@ -34,6 +34,8 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Role, user.Role),
+            new("role", user.Role),
             new("device_id", device.Id.ToString()),
             new("phone_number", user.PhoneNumber),
             new("first_name", user.FirstName),

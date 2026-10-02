@@ -36,6 +36,12 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("password_hash")
             .IsRequired();
 
+        builder.Property(u => u.Role)
+            .HasColumnName("role")
+            .HasMaxLength(20)
+            .HasDefaultValue("user")
+            .IsRequired();
+
         builder.Property(u => u.CreatedAt)
             .HasColumnName("created_at")
             .IsRequired();

@@ -175,7 +175,7 @@ public class AuthService : IAuthService
 
     private static AuthResponseDto MapToAuthResponse(User user, Device device, string accessToken, string refreshToken, DateTime expiry)
     {
-        var userDto = new UserDto(user.Id, user.FirstName, user.LastName, user.PhoneNumber, user.CreatedAt);
+        var userDto = new UserDto(user.Id, user.FirstName, user.LastName, user.PhoneNumber, user.Role, user.CreatedAt);
         var deviceDto = new DeviceDto(device.Id, device.DeviceModel, device.FcmToken, device.IsActive, device.LastActiveAt);
 
         return new AuthResponseDto(

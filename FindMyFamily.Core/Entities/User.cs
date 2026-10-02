@@ -7,6 +7,7 @@ public class User
     public string LastName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
+    public string Role { get; set; } = "user"; // "admin", "user"
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 

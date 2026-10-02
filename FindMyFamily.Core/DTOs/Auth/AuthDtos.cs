@@ -27,6 +27,7 @@ public record UserDto(
     string FirstName,
     string LastName,
     string PhoneNumber,
+    string Role,
     DateTime CreatedAt
 );
 

@@ -33,6 +33,20 @@ public class UserRepository : IUserRepository
             .AnyAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<User>> GetAllUsersAsync(int page = 1, int pageSize = 50, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> GetTotalCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Users.CountAsync(cancellationToken);
+    }
+
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _context.Users.AddAsync(user, cancellationToken);
