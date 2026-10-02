@@ -1,5 +1,6 @@
 using System.Text;
 using DotNetEnv;
+using FindMyFamily.Api.Filters;
 using FindMyFamily.Api.Hubs;
 using FindMyFamily.Api.Middlewares;
 using FindMyFamily.Api.Services;
@@ -35,6 +36,7 @@ builder.Services.AddSwaggerGen(options =>
         Description = "API REST y servidor de tiempo real para localización familiar bajo demanda (On-Demand)."
     });
 
+    // Definición de seguridad Bearer
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -45,9 +47,8 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Ingresa tu token JWT en el formato: Bearer {tu_token}"
     });
 
-    var securityRequirement = new OpenApiSecurityRequirement();
-    securityRequirement.Add(new OpenApiSecuritySchemeReference("Bearer"), new List<string>());
-    options.AddSecurityRequirement(doc => securityRequirement);
+    // Agrega el candadito 🔒 y el requisito de seguridad exclusivamente a los endpoints con [Authorize]
+    options.OperationFilter<AuthorizeCheckOperationFilter>();
 });
 
 // 5. Configuración de Autenticación JWT (con soporte para WebSockets / SignalR)
