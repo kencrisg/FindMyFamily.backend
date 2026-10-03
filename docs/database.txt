@@ -9,8 +9,10 @@ Table users {
   last_name varchar(50)
   phone_number varchar [unique, note: 'Mandatorio para inicio de sesion']
   password_hash varchar
+  role varchar (20)
   created_at timestamp
   updated_at timestamp
+  
 }
 
 Table devices {
