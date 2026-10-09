@@ -4,9 +4,20 @@ public record CreateFamilyRequestDto(
     string Name
 );
 
+public record UpdateFamilyRequestDto(
+    string Name
+);
+
 public record AddFamilyMemberRequestDto(
     string PhoneNumber,
     string Role = "member"
+);
+
+public record CreateFamilyMemberUserRequestDto(
+    string FirstName,
+    string LastName,
+    string PhoneNumber,
+    string Password
 );
 
 public record UpdateMemberRoleRequestDto(

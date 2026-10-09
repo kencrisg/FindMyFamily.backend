@@ -9,11 +9,16 @@ namespace FindMyFamily.Core.Services;
 public class DeviceService : IDeviceService
 {
     private readonly IDeviceRepository _deviceRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
 
-    public DeviceService(IDeviceRepository deviceRepository, IUnitOfWork unitOfWork)
+    public DeviceService(
+        IDeviceRepository deviceRepository,
+        IUserRepository userRepository,
+        IUnitOfWork unitOfWork)
     {
         _deviceRepository = deviceRepository;
+        _userRepository = userRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -61,6 +66,26 @@ public class DeviceService : IDeviceService
             _deviceRepository.Update(device);
         }
 
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UnlinkDeviceAsync(Guid requestingUserId, Guid deviceId, CancellationToken cancellationToken = default)
+    {
+        var caller = await _userRepository.GetByIdAsync(requestingUserId, cancellationToken);
+        var isSuperAdmin = caller != null && caller.Role.Equals("admin", StringComparison.OrdinalIgnoreCase);
+
+        var device = await _deviceRepository.GetByIdAsync(deviceId, cancellationToken);
+        if (device == null)
+        {
+            throw new NotFoundException("Dispositivo no encontrado.", "DEVICE_NOT_FOUND");
+        }
+
+        if (!isSuperAdmin && device.UserId != requestingUserId)
+        {
+            throw new ForbiddenException("No tienes permiso para desvincular este dispositivo.", "FORBIDDEN");
+        }
+
+        _deviceRepository.Delete(device);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

@@ -1,31 +1,19 @@
-@FindMyFamily.Api_HostAddress = http://localhost:5000
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+@FindMyFamily.Api_HostAddress = http://localhost:5210
 @adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+@userToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 @familyId = 265063bd-efbf-4d54-93c0-4c9b634de51f
 @targetUserId = a50b0f89-40c3-464e-a9e6-2c47e5564419
+@deviceId = 00000000-0000-0000-0000-000000000000
 
-### 1. Health check & Swagger
+### 1. Health check & Smoke Test
 GET {{FindMyFamily.Api_HostAddress}}/
 Accept: application/json
 
 ### ========================================================
-### MÓDULO DE AUTENTICACIÓN
+### MÓDULO DE AUTENTICACIÓN (Solo Login y Refresh Token)
 ### ========================================================
 
-### 2. Registrar usuario (Admin Inicial / Usuario)
-POST {{FindMyFamily.Api_HostAddress}}/api/auth/register
-Content-Type: application/json
-
-{
-  "firstName": "Ken",
-  "lastName": "Castro",
-  "phoneNumber": "0995929826",
-  "password": "Password123*",
-  "deviceModel": "Pixel 8 Pro",
-  "fcmToken": "ken_fcm_token"
-}
-
-### 3. Iniciar sesión
+### 2. Iniciar sesión (Super Admin / Usuario)
 POST {{FindMyFamily.Api_HostAddress}}/api/auth/login
 Content-Type: application/json
 
@@ -36,7 +24,7 @@ Content-Type: application/json
   "fcmToken": "ken_fcm_token"
 }
 
-### 4. Renovar Token (Refresh Token)
+### 3. Renovar Token (Refresh Token)
 POST {{FindMyFamily.Api_HostAddress}}/api/auth/refresh-token
 Content-Type: application/json
 
@@ -47,27 +35,27 @@ Content-Type: application/json
 }
 
 ### ========================================================
-### MÓDULO DE PERFIL DE USUARIO (Cualquier usuario autenticado)
+### MÓDULO DE PERFIL DE USUARIO
 ### ========================================================
 
-### 5. Consultar Mi Perfil
+### 4. Consultar Mi Perfil (Muestra SystemRole y familias con FamilyRole)
 GET {{FindMyFamily.Api_HostAddress}}/api/users/me
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{adminToken}}
 Accept: application/json
 
-### 6. Actualizar Mi Número de Teléfono
+### 5. Actualizar Mi Número de Teléfono
 PATCH {{FindMyFamily.Api_HostAddress}}/api/users/me/phone
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-  "newPhoneNumber": "+593999999111",
+  "newPhoneNumber": "0995929826",
   "password": "Password123*"
 }
 
-### 7. Actualizar Mi Contraseña
+### 6. Actualizar Mi Contraseña
 PATCH {{FindMyFamily.Api_HostAddress}}/api/users/me/password
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
@@ -76,15 +64,20 @@ Content-Type: application/json
 }
 
 ### ========================================================
-### MÓDULO DE ADMINISTRACIÓN (Solo Usuarios con Rol 'admin')
+### MÓDULO DE SUPER ADMINISTRADOR (users.role = 'admin')
 ### ========================================================
 
-### 8. Listar Todos los Usuarios del Sistema
+### 7. Super Admin: Listar Todos los Usuarios de la Plataforma
 GET {{FindMyFamily.Api_HostAddress}}/api/users?page=1&pageSize=20
 Authorization: Bearer {{adminToken}}
 Accept: application/json
 
-### 9. Crear Usuario desde Panel Admin
+### 8. Super Admin: Consultar Usuario por ID
+GET {{FindMyFamily.Api_HostAddress}}/api/users/{{targetUserId}}
+Authorization: Bearer {{adminToken}}
+Accept: application/json
+
+### 9. Super Admin: Crear Usuario Asignando FamilyId Obligatorio
 POST {{FindMyFamily.Api_HostAddress}}/api/users
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -94,66 +87,120 @@ Content-Type: application/json
   "lastName": "Gomez",
   "phoneNumber": "+593977777777",
   "password": "Password123*",
-  "role": "user"
+  "familyId": "{{familyId}}",
+  "familyRole": "admin"
 }
 
-### 10. Eliminar Usuario desde Panel Admin
+### 10. Super Admin: Modificar Usuario / Reasignar Familia
+PATCH {{FindMyFamily.Api_HostAddress}}/api/users/{{targetUserId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Carlos Alberto",
+  "familyId": "{{familyId}}",
+  "familyRole": "member"
+}
+
+### 11. Super Admin: Eliminar Usuario del Sistema
 DELETE {{FindMyFamily.Api_HostAddress}}/api/users/{{targetUserId}}
 Authorization: Bearer {{adminToken}}
 
 ### ========================================================
-### MÓDULO DE FAMILIAS Y MIEMBROS
+### MÓDULO DE FAMILIAS (Super Admin & Admin Familiar)
 ### ========================================================
 
-### 11. Crear Grupo Familiar
+### 12. Super Admin: Crear Nueva Familia
 POST {{FindMyFamily.Api_HostAddress}}/api/families
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
   "name": "Familia Castro"
 }
 
-### 12. Listar mis Grupos Familiares
+### 13. Listar Familias (Super Admin ve todas; Usuario normal solo las suyas)
 GET {{FindMyFamily.Api_HostAddress}}/api/families
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{adminToken}}
 Accept: application/json
 
-### 13. Obtener Detalle de Grupo Familiar por ID
+### 14. Obtener Detalle de Familia por ID
 GET {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{adminToken}}
 Accept: application/json
 
-### 14. Añadir Miembro por Número de Teléfono
-POST {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members
-Authorization: Bearer {{authToken}}
+### 15. Super Admin: Modificar Nombre de Familia
+PATCH {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}
+Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-  "phoneNumber": "+593988888888",
+  "name": "Familia Castro Actualizada"
+}
+
+### 16. Super Admin: Eliminar Familia en Cascada
+DELETE {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}
+Authorization: Bearer {{adminToken}}
+
+### 17. Admin Familiar: Crear y Dar de Alta un Pariente Directamente en la Familia
+POST {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "firstName": "Juanito",
+  "lastName": "Castro",
+  "phoneNumber": "+593988888123",
+  "password": "Password123*"
+}
+
+### 18. Admin Familiar: Vincular Usuario Preexistente por Teléfono
+POST {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members/link
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "phoneNumber": "+593988888889",
   "role": "member"
 }
 
-### 15. Actualizar Rol de un Miembro de Familia
+### 19. Admin Familiar: Modificar Rol de un Miembro ('admin' o 'member')
 PATCH {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members/{{targetUserId}}/role
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{userToken}}
 Content-Type: application/json
 
 {
   "role": "admin"
 }
 
-### 16. Eliminar Miembro o Salir del Grupo
+### 20. Expulsar Miembro o Salir del Grupo
 DELETE {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members/{{targetUserId}}
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{userToken}}
+
+### ========================================================
+### MÓDULO DE DISPOSITIVOS
+### ========================================================
+
+### 21. Actualizar Token FCM del Dispositivo Activo
+PATCH {{FindMyFamily.Api_HostAddress}}/api/devices/fcm-token
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "fcmToken": "nuevo_fcm_token_rotado"
+}
+
+### 22. Desvincular / Eliminar Dispositivo (Super Admin o Propietario)
+DELETE {{FindMyFamily.Api_HostAddress}}/api/devices/{{deviceId}}
+Authorization: Bearer {{adminToken}}
 
 ### ========================================================
 ### MÓDULO DE LOCALIZACIÓN ON-DEMAND (FCM & SIGNALR)
 ### ========================================================
 
-### 17. Solicitar Ubicación On-Demand (Emite Silent Push a través de FCM)
+### 23. Solicitar Ubicación On-Demand (Silent Push vía FCM)
 POST {{FindMyFamily.Api_HostAddress}}/api/locations/request
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{userToken}}
 Content-Type: application/json
 
 {
@@ -161,9 +208,9 @@ Content-Type: application/json
   "targetUserId": "{{targetUserId}}"
 }
 
-### 18. Reportar Ubicación GPS (Respuesta del dispositivo destino al despertar)
+### 24. Reportar Coordenadas GPS (En respuesta al despertar por Silent Push)
 POST {{FindMyFamily.Api_HostAddress}}/api/locations/report
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{userToken}}
 Content-Type: application/json
 
 {
@@ -171,12 +218,12 @@ Content-Type: application/json
   "longitude": -78.467834
 }
 
-### 19. Consultar Última Ubicación de un Familiar
+### 25. Consultar Última Ubicación de un Familiar
 GET {{FindMyFamily.Api_HostAddress}}/api/locations/families/{{familyId}}/users/{{targetUserId}}/latest
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{userToken}}
 Accept: application/json
 
-### 20. Consultar Historial de Ubicaciones
+### 26. Consultar Historial de Ubicaciones
 GET {{FindMyFamily.Api_HostAddress}}/api/locations/families/{{familyId}}/users/{{targetUserId}}/history?limit=20
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{userToken}}
 Accept: application/json

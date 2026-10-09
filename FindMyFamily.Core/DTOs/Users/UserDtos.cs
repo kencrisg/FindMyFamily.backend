@@ -1,11 +1,19 @@
 namespace FindMyFamily.Core.DTOs.Users;
 
+public record UserFamilyMembershipDto(
+    Guid FamilyId,
+    string FamilyName,
+    string FamilyRole,
+    DateTime JoinedAt
+);
+
 public record UserProfileDto(
     Guid Id,
     string FirstName,
     string LastName,
     string PhoneNumber,
-    string Role,
+    string SystemRole,
+    IReadOnlyList<UserFamilyMembershipDto> Families,
     DateTime CreatedAt,
     DateTime? UpdatedAt
 );
@@ -25,9 +33,14 @@ public record AdminCreateUserRequestDto(
     string LastName,
     string PhoneNumber,
     string Password,
-    string Role = "user"
+    Guid FamilyId,
+    string FamilyRole = "member"
 );
 
-public record AdminUpdateUserRoleRequestDto(
-    string Role
+public record AdminUpdateUserRequestDto(
+    string? FirstName,
+    string? LastName,
+    string? PhoneNumber,
+    Guid? FamilyId,
+    string? FamilyRole
 );

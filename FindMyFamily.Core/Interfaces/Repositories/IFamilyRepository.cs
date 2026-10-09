@@ -7,6 +7,7 @@ public interface IFamilyRepository
     Task<Family?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<Family?> GetByIdWithMembersAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Family>> GetFamiliesByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Family>> GetAllFamiliesAsync(CancellationToken cancellationToken = default);
     Task<bool> IsMemberAsync(Guid familyId, Guid userId, CancellationToken cancellationToken = default);
     Task<FamilyMember?> GetMemberAsync(Guid familyId, Guid userId, CancellationToken cancellationToken = default);
     Task AddAsync(Family family, CancellationToken cancellationToken = default);

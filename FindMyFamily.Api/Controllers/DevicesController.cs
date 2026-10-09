@@ -57,4 +57,18 @@ public class DevicesController : ControllerBase
         await _deviceService.UpdateFcmTokenAsync(CurrentUserId, CurrentDeviceId, request, cancellationToken);
         return NoContent();
     }
+
+    /// <summary>
+    /// Desvincula o elimina un dispositivo/teléfono registrado (Solo Super Admin o el propio usuario dueño del dispositivo).
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnlinkDevice(Guid id, CancellationToken cancellationToken)
+    {
+        await _deviceService.UnlinkDeviceAsync(CurrentUserId, id, cancellationToken);
+        return NoContent();
+    }
 }

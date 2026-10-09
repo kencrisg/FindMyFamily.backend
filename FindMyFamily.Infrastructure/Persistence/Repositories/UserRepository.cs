@@ -17,6 +17,8 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .Include(u => u.Devices)
+            .Include(u => u.FamilyMembers)
+                .ThenInclude(fm => fm.Family)
             .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
 
@@ -24,6 +26,8 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .Include(u => u.Devices)
+            .Include(u => u.FamilyMembers)
+                .ThenInclude(fm => fm.Family)
             .FirstOrDefaultAsync(u => u.PhoneNumber == phoneNumber, cancellationToken);
     }
 
@@ -36,6 +40,9 @@ public class UserRepository : IUserRepository
     public async Task<IReadOnlyList<User>> GetAllUsersAsync(int page = 1, int pageSize = 50, CancellationToken cancellationToken = default)
     {
         return await _context.Users
+            .Include(u => u.Devices)
+            .Include(u => u.FamilyMembers)
+                .ThenInclude(fm => fm.Family)
             .OrderByDescending(u => u.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)

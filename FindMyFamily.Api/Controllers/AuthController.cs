@@ -10,19 +10,9 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
 
-    public AuthController(IAuthService _authService)
+    public AuthController(IAuthService authService)
     {
-        this._authService = _authService;
-    }
-
-    [HttpPost("register")]
-    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Register([FromBody] RegisterRequestDto request, CancellationToken cancellationToken)
-    {
-        var response = await _authService.RegisterAsync(request, cancellationToken);
-        return StatusCode(StatusCodes.Status201Created, response);
+        _authService = authService;
     }
 
     [HttpPost("login")]

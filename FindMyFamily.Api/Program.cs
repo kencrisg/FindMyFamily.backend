@@ -126,6 +126,7 @@ app.MapGet("/", () => Results.Ok(new {
     swagger = "/swagger",
     signalr = "/hubs/location"
 }))
-.WithName("Root");
+.WithName("Root")
+.WithTags("Health");
 
 app.Run();

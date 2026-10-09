@@ -11,6 +11,8 @@ public interface IUserService
 
     // Operaciones de Administrador de Sistema
     Task<UserProfileDto> AdminCreateUserAsync(Guid adminUserId, AdminCreateUserRequestDto request, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> AdminGetUserByIdAsync(Guid adminUserId, Guid targetUserId, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> AdminUpdateUserAsync(Guid adminUserId, Guid targetUserId, AdminUpdateUserRequestDto request, CancellationToken cancellationToken = default);
     Task AdminDeleteUserAsync(Guid adminUserId, Guid targetUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<UserProfileDto>> AdminGetAllUsersAsync(Guid adminUserId, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default);
 }

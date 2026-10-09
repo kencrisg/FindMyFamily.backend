@@ -36,6 +36,15 @@ public class FamilyRepository : IFamilyRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Family>> GetAllFamiliesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Families
+            .Include(f => f.FamilyMembers)
+                .ThenInclude(fm => fm.User)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<bool> IsMemberAsync(Guid familyId, Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.FamilyMembers

@@ -36,7 +36,7 @@ public class UsersController : ControllerBase
     // =========================================================================
 
     /// <summary>
-    /// Obtiene el perfil del usuario autenticado.
+    /// Obtiene el perfil del usuario autenticado, incluyendo su SystemRole (tabla users) y las familias a las que pertenece con su respectivo FamilyRole (tabla family_members).
     /// </summary>
     [HttpGet("me")]
     [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
@@ -80,7 +80,7 @@ public class UsersController : ControllerBase
     // =========================================================================
 
     /// <summary>
-    /// Lista todos los usuarios de la plataforma (Solo Administradores del Sistema).
+    /// Lista todos los usuarios de la plataforma con sus roles y familias (Solo Super Administrador).
     /// </summary>
     [Authorize(Roles = "admin")]
     [HttpGet]
@@ -94,7 +94,22 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// Crea un nuevo usuario directamente desde el panel de administración (Solo Administradores del Sistema).
+    /// Consulta el detalle de un usuario específico (Solo Super Administrador).
+    /// </summary>
+    [Authorize(Roles = "admin")]
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUserById(Guid id, CancellationToken cancellationToken)
+    {
+        var user = await _userService.AdminGetUserByIdAsync(CurrentUserId, id, cancellationToken);
+        return Ok(user);
+    }
+
+    /// <summary>
+    /// Crea un nuevo usuario en la plataforma asignándolo obligatoriamente a una familia (Solo Super Administrador).
     /// </summary>
     [Authorize(Roles = "admin")]
     [HttpPost]
@@ -102,6 +117,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> AdminCreateUser([FromBody] AdminCreateUserRequestDto request, CancellationToken cancellationToken)
     {
@@ -110,7 +126,24 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// Elimina un usuario del sistema (Solo Administradores del Sistema).
+    /// Modifica los datos o reasigna de familia a un usuario existente (Solo Super Administrador).
+    /// </summary>
+    [Authorize(Roles = "admin")]
+    [HttpPatch("{id:guid}")]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> AdminUpdateUser(Guid id, [FromBody] AdminUpdateUserRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _userService.AdminUpdateUserAsync(CurrentUserId, id, request, cancellationToken);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Elimina un usuario del sistema y todas sus dependencias en cascada (Solo Super Administrador).
     /// </summary>
     [Authorize(Roles = "admin")]
     [HttpDelete("{id:guid}")]
