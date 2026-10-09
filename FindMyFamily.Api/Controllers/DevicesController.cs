@@ -48,7 +48,7 @@ public class DevicesController : ControllerBase
     /// Actualiza el token de Firebase (FCM Token) del dispositivo actual para recibir notificaciones Silent Push.
     /// Invocado automáticamente por la app móvil cuando Firebase rota el token.
     /// </summary>
-    [HttpPut("fcm-token")]
+    [HttpPatch("fcm-token")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

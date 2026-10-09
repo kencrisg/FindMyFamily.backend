@@ -51,7 +51,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Actualiza el número de teléfono del usuario autenticado (requiere contraseña por seguridad).
     /// </summary>
-    [HttpPut("me/phone")]
+    [HttpPatch("me/phone")]
     [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -65,7 +65,7 @@ public class UsersController : ControllerBase
     /// <summary>
     /// Actualiza la contraseña del usuario autenticado (requiere contraseña actual).
     /// </summary>
-    [HttpPut("me/password")]
+    [HttpPatch("me/password")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

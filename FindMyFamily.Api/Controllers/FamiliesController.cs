@@ -82,7 +82,7 @@ public class FamiliesController : ControllerBase
         return NoContent();
     }
 
-    [HttpPut("{id:guid}/members/{userId:guid}/role")]
+    [HttpPatch("{id:guid}/members/{userId:guid}/role")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

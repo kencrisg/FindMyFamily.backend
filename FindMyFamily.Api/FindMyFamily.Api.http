@@ -56,7 +56,7 @@ Authorization: Bearer {{authToken}}
 Accept: application/json
 
 ### 6. Actualizar Mi Número de Teléfono
-PUT {{FindMyFamily.Api_HostAddress}}/api/users/me/phone
+PATCH {{FindMyFamily.Api_HostAddress}}/api/users/me/phone
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
@@ -66,7 +66,7 @@ Content-Type: application/json
 }
 
 ### 7. Actualizar Mi Contraseña
-PUT {{FindMyFamily.Api_HostAddress}}/api/users/me/password
+PATCH {{FindMyFamily.Api_HostAddress}}/api/users/me/password
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
@@ -135,7 +135,7 @@ Content-Type: application/json
 }
 
 ### 15. Actualizar Rol de un Miembro de Familia
-PUT {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members/{{targetUserId}}/role
+PATCH {{FindMyFamily.Api_HostAddress}}/api/families/{{familyId}}/members/{{targetUserId}}/role
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
