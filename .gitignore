@@ -3,8 +3,14 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+#firebase
+firebase-admin.json
+
 # dotenv files
 .env
+.env.*
+.env.local
+!.env.example
 
 # User-specific files
 *.rsuser
