@@ -19,8 +19,8 @@ public class FirebasePushNotificationService : IPushNotificationService
 
         var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? "Production";
         var isDevelopment = environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
-        var credentialsPath = configuration["FIREBASE_CREDENTIALS_PATH"];
-        var credentialsAvailable = !string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath);
+        var credentialsPath = ResolveCredentialsPath(configuration["FIREBASE_CREDENTIALS_PATH"]);
+        var credentialsAvailable = credentialsPath != null;
 
         if (!credentialsAvailable && !isDevelopment)
         {
@@ -136,6 +136,47 @@ public class FirebasePushNotificationService : IPushNotificationService
             _logger.LogError(ex, "Error al enviar Silent Push a través de Firebase Messaging.");
             return false;
         }
+    }
+
+
+    /// <summary>
+    /// Resuelve la ruta de las credenciales.
+    ///
+    /// Un valor relativo como "./firebase-admin.json" se interpreta contra el directorio de
+    /// trabajo, que al ejecutar `dotnet run --project FindMyFamily.Api` es la carpeta del
+    /// proyecto de API y no la raíz del backend, donde está el archivo. El resultado era que
+    /// el SDK nunca se inicializaba y el servicio se quedaba en modo simulado: respondía
+    /// "enviado correctamente" sin enviar nada. Por eso se busca también hacia arriba en el
+    /// árbol de directorios, el mismo criterio que usa DotNetEnv para encontrar el `.env`.
+    ///
+    /// Devuelve la ruta absoluta encontrada, o null si no existe en ningún nivel.
+    /// </summary>
+    private static string? ResolveCredentialsPath(string? configuredPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return null;
+        }
+
+        if (Path.IsPathRooted(configuredPath))
+        {
+            return File.Exists(configuredPath) ? configuredPath : null;
+        }
+
+        var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+
+        while (directory != null)
+        {
+            var candidate = Path.GetFullPath(Path.Combine(directory.FullName, configuredPath));
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
     }
 
     private static string Redact(string token) =>

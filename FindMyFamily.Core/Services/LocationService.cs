@@ -23,8 +23,6 @@ public class LocationService : ILocationService
     private const int MaxRequestsPerWindow = 10;
     private static readonly TimeSpan RequestRateWindow = TimeSpan.FromMinutes(10);
 
-    private const int MaxHistoryLimit = 500;
-
     private readonly ILocationRepository _locationRepository;
     private readonly ILocationRequestRepository _locationRequestRepository;
     private readonly IFamilyRepository _familyRepository;
@@ -242,19 +240,6 @@ public class LocationService : ILocationService
         await ValidateFamilyAccessAsync(requestingUserId, familyId, targetUserId, cancellationToken);
 
         return await GetLastKnownAsync(targetUserId, cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<LocationDto>> GetLocationHistoryAsync(Guid requestingUserId, Guid familyId, Guid targetUserId, int limit = 50, CancellationToken cancellationToken = default)
-    {
-        await ValidateFamilyAccessAsync(requestingUserId, familyId, targetUserId, cancellationToken);
-
-        // Acotar el límite: un valor negativo hacía que PostgreSQL rechazara el LIMIT (500)
-        // y un valor enorme volcaba el historial completo en una sola respuesta.
-        var safeLimit = Math.Clamp(limit, 1, MaxHistoryLimit);
-
-        var history = await _locationRepository.GetHistoryByUserIdAsync(targetUserId, safeLimit, cancellationToken);
-
-        return history.Select(ToDto).ToList();
     }
 
     public async Task<int> DeleteMyHistoryAsync(Guid userId, CancellationToken cancellationToken = default)

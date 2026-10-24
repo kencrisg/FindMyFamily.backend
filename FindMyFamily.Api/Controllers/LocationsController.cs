@@ -64,19 +64,9 @@ public class LocationsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Obtiene el historial reciente de ubicaciones de un miembro de la familia.
-    /// </summary>
-    [HttpGet("families/{familyId:guid}/users/{userId:guid}/history")]
-    [ProducesResponseType(typeof(IReadOnlyList<LocationDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetLocationHistory(Guid familyId, Guid userId, [FromQuery] int limit = 50, CancellationToken cancellationToken = default)
-    {
-        var response = await _locationService.GetLocationHistoryAsync(CurrentUserId, familyId, userId, limit, cancellationToken);
-        return Ok(response);
-    }
-
-    /// <summary>
-    /// Borra todo el historial de ubicaciones del usuario autenticado (derecho de supresión).
+    /// Borra todas las ubicaciones almacenadas del usuario autenticado (derecho de supresión).
+    /// La app solo muestra la última posición, pero el rastro queda guardado: esto permite
+    /// al propio usuario eliminarlo.
     /// </summary>
     [HttpDelete("me/history")]
     [ProducesResponseType(StatusCodes.Status200OK)]

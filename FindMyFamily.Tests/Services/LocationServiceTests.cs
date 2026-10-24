@@ -418,27 +418,6 @@ public class LocationServiceTests
         Assert.Null(await h.Locations.GetLatestLocationAsync(madre, familia, padre));
     }
 
-    [Theory]
-    [InlineData(-1)]
-    [InlineData(0)]
-    [InlineData(999999)]
-    public async Task GetLocationHistory_AcotaElLimiteEnLugarDeReventar(int limite)
-    {
-        // limit=-1 generaba un LIMIT negativo que PostgreSQL rechaza (500), y un limit
-        // enorme volcaba el historial completo en una sola respuesta.
-        await using var h = ServiceHarness.Create();
-        var (familia, madre, padre) = await EscenarioFamiliar(h);
-        for (var i = 1; i <= 3; i++)
-        {
-            await h.AddLocationAsync(padre, i, i, DateTime.UtcNow.AddMinutes(-i));
-        }
-
-        var historial = await h.Locations.GetLocationHistoryAsync(madre, familia, padre, limite);
-
-        Assert.NotEmpty(historial);
-        Assert.True(historial.Count <= 500);
-    }
-
     [Fact]
     public async Task DeleteMyHistory_BorraSoloElHistorialPropio()
     {

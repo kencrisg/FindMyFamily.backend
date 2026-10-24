@@ -22,20 +22,6 @@ public class LocationRepository : ILocationRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Location>> GetHistoryByUserIdAsync(Guid userId, int limit = 50, CancellationToken cancellationToken = default)
-    {
-        // El límite ya llega acotado desde el servicio; esta guarda evita que una futura
-        // llamada directa al repositorio vuelva a generar un LIMIT negativo.
-        var safeLimit = Math.Clamp(limit, 1, 500);
-
-        return await _context.Locations
-            .AsNoTracking()
-            .Where(l => l.UserId == userId)
-            .OrderByDescending(l => l.CapturedAt)
-            .Take(safeLimit)
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task AddAsync(Location location, CancellationToken cancellationToken = default)
     {
         await _context.Locations.AddAsync(location, cancellationToken);
