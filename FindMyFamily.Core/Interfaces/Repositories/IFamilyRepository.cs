@@ -10,9 +10,13 @@ public interface IFamilyRepository
     Task<IReadOnlyList<Family>> GetAllFamiliesAsync(CancellationToken cancellationToken = default);
     Task<bool> IsMemberAsync(Guid familyId, Guid userId, CancellationToken cancellationToken = default);
     Task<FamilyMember?> GetMemberAsync(Guid familyId, Guid userId, CancellationToken cancellationToken = default);
+    Task<int> CountAdminsAsync(Guid familyId, CancellationToken cancellationToken = default);
     Task AddAsync(Family family, CancellationToken cancellationToken = default);
     Task AddMemberAsync(FamilyMember member, CancellationToken cancellationToken = default);
     void RemoveMember(FamilyMember member);
+
+    /// <summary>Elimina todas las pertenencias del usuario (al borrar su cuenta lógicamente).</summary>
+    Task<int> RemoveAllMembershipsAsync(Guid userId, CancellationToken cancellationToken = default);
     void Update(Family family);
     void Delete(Family family);
 }

@@ -1,15 +1,14 @@
-using System.Security.Claims;
 using FindMyFamily.Core.DTOs.Locations;
 using FindMyFamily.Core.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FindMyFamily.Api.Controllers;
 
 [Authorize]
-[ApiController]
 [Route("api/[controller]")]
-public class LocationsController : ControllerBase
+public class LocationsController : ApiControllerBase
 {
     private readonly ILocationService _locationService;
 
@@ -18,22 +17,10 @@ public class LocationsController : ControllerBase
         _locationService = locationService;
     }
 
-    private Guid CurrentUserId
-    {
-        get
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
-            if (claim == null || !Guid.TryParse(claim.Value, out var userId))
-            {
-                throw new UnauthorizedAccessException("Usuario no autenticado.");
-            }
-            return userId;
-        }
-    }
-
     /// <summary>
     /// Solicita la ubicación On-Demand de un familiar (emite un Silent Push vía FCM para despertar su celular).
     /// </summary>
+    [EnableRateLimiting("location-request")]
     [HttpPost("request")]
     [ProducesResponseType(typeof(LocationRequestResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -86,5 +73,17 @@ public class LocationsController : ControllerBase
     {
         var response = await _locationService.GetLocationHistoryAsync(CurrentUserId, familyId, userId, limit, cancellationToken);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Borra todo el historial de ubicaciones del usuario autenticado (derecho de supresión).
+    /// </summary>
+    [HttpDelete("me/history")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> DeleteMyHistory(CancellationToken cancellationToken)
+    {
+        var deleted = await _locationService.DeleteMyHistoryAsync(CurrentUserId, cancellationToken);
+        return Ok(new { deleted });
     }
 }

@@ -166,4 +166,4 @@ FindMyFamily.Backend/
 
 ## 👨‍💻 Autor y Licencia
 
-Desarrollado por **Ken Cris** — Proyecto publicado bajo Licencia [MIT](LICENSE).
+Desarrollado por **kencrisgdev** — Proyecto publicado bajo Licencia [MIT](LICENSE).

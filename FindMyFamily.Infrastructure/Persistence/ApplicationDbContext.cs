@@ -15,6 +15,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Family> Families => Set<Family>();
     public DbSet<FamilyMember> FamilyMembers => Set<FamilyMember>();
     public DbSet<Location> Locations => Set<Location>();
+    public DbSet<LocationRequest> LocationRequests => Set<LocationRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

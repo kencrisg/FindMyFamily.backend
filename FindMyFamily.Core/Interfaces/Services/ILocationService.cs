@@ -8,4 +8,7 @@ public interface ILocationService
     Task<LocationDto> ReportLocationAsync(Guid reportingUserId, ReportLocationDto request, CancellationToken cancellationToken = default);
     Task<LocationDto?> GetLatestLocationAsync(Guid requestingUserId, Guid familyId, Guid targetUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<LocationDto>> GetLocationHistoryAsync(Guid requestingUserId, Guid familyId, Guid targetUserId, int limit = 50, CancellationToken cancellationToken = default);
+
+    /// <summary>Borra todo el historial de ubicaciones del propio usuario (derecho de supresión).</summary>
+    Task<int> DeleteMyHistoryAsync(Guid userId, CancellationToken cancellationToken = default);
 }

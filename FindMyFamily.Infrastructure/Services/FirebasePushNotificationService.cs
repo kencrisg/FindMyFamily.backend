@@ -11,18 +11,32 @@ public class FirebasePushNotificationService : IPushNotificationService
 {
     private readonly ILogger<FirebasePushNotificationService> _logger;
     private readonly bool _isFirebaseInitialized;
+    private readonly bool _mockEnabled;
 
     public FirebasePushNotificationService(IConfiguration configuration, ILogger<FirebasePushNotificationService> logger)
     {
         _logger = logger;
 
+        var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? "Production";
+        var isDevelopment = environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
+        var credentialsPath = configuration["FIREBASE_CREDENTIALS_PATH"];
+        var credentialsAvailable = !string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath);
+
+        if (!credentialsAvailable && !isDevelopment)
+        {
+            // Fuera de desarrollo se falla al arrancar. El modo simulado devolvía "enviado
+            // correctamente" sin enviar nada: en una app para localizar a un familiar, un
+            // fallo silencioso es peor que un error visible.
+            throw new InvalidOperationException(
+                $"Las credenciales de Firebase no están disponibles en '{credentialsPath}'. " +
+                "Son obligatorias fuera del entorno de desarrollo: sin ellas el Silent Push no se envía.");
+        }
+
         try
         {
             if (FirebaseApp.DefaultInstance == null)
             {
-                var credentialsPath = configuration["FIREBASE_CREDENTIALS_PATH"];
-
-                if (!string.IsNullOrEmpty(credentialsPath) && File.Exists(credentialsPath))
+                if (credentialsAvailable)
                 {
                     FirebaseApp.Create(new AppOptions
                     {
@@ -33,7 +47,9 @@ public class FirebasePushNotificationService : IPushNotificationService
                 }
                 else
                 {
-                    _logger.LogWarning("FIREBASE_CREDENTIALS_PATH no fue proporcionado o el archivo no existe. Modo desarrollo simulado activo para FCM.");
+                    _logger.LogWarning(
+                        "FIREBASE_CREDENTIALS_PATH no fue proporcionado o el archivo no existe. " +
+                        "Modo simulado activo: las peticiones de ubicación NO despertarán ningún dispositivo real.");
                     _isFirebaseInitialized = false;
                 }
             }
@@ -46,7 +62,15 @@ public class FirebasePushNotificationService : IPushNotificationService
         {
             _logger.LogError(ex, "Error al inicializar Firebase Admin SDK.");
             _isFirebaseInitialized = false;
+
+            if (!isDevelopment)
+            {
+                throw;
+            }
         }
+
+        // El mock solo se habilita en desarrollo, nunca por el simple hecho de faltar el archivo.
+        _mockEnabled = isDevelopment && !_isFirebaseInitialized;
     }
 
     public async Task<bool> SendSilentLocationRequestAsync(string fcmToken, Guid requestId, Guid requesterId, Guid familyId, CancellationToken cancellationToken = default)
@@ -57,11 +81,17 @@ public class FirebasePushNotificationService : IPushNotificationService
             return false;
         }
 
-        // Si estamos en desarrollo sin credenciales reales, simulamos el envío exitoso
         if (!_isFirebaseInitialized || FirebaseApp.DefaultInstance == null)
         {
-            _logger.LogInformation("[DEV-MOCK] Silent Push simulado para token: {Token}, RequestId: {RequestId}, RequesterId: {RequesterId}",
-                fcmToken, requestId, requesterId);
+            if (!_mockEnabled)
+            {
+                _logger.LogError("Firebase no está inicializado: no se puede enviar el Silent Push.");
+                return false;
+            }
+
+            // Nunca se registra el token completo: es un identificador sensible del dispositivo.
+            _logger.LogInformation("[DEV-MOCK] Silent Push simulado para el token {TokenPrefix}… (RequestId: {RequestId})",
+                Redact(fcmToken), requestId);
             return true;
         }
 
@@ -107,4 +137,7 @@ public class FirebasePushNotificationService : IPushNotificationService
             return false;
         }
     }
+
+    private static string Redact(string token) =>
+        token.Length <= 6 ? "***" : token[..6];
 }

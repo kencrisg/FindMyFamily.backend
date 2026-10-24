@@ -20,6 +20,7 @@ Content-Type: application/json
 {
   "phoneNumber": "0995929826",
   "password": "Password123*",
+  "installationId": "pixel-8-pro-instalacion-001",
   "deviceModel": "Pixel 8 Pro",
   "fcmToken": "ken_fcm_token"
 }
@@ -30,8 +31,19 @@ Content-Type: application/json
 
 {
   "refreshToken": "REPLACE_WITH_REFRESH_TOKEN",
+  "installationId": "pixel-8-pro-instalacion-001",
   "deviceModel": "Pixel 8 Pro",
   "fcmToken": "ken_fcm_token"
+}
+
+### 3b. Cerrar sesión (revoca el refresh token en el servidor)
+POST {{FindMyFamily.Api_HostAddress}}/api/auth/logout
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "REPLACE_WITH_REFRESH_TOKEN",
+  "allDevices": false
 }
 
 ### ========================================================
@@ -52,6 +64,10 @@ Content-Type: application/json
   "newPhoneNumber": "0995929826",
   "password": "Password123*"
 }
+
+### 5b. Borrar mi historial de ubicaciones (derecho de supresión)
+DELETE {{FindMyFamily.Api_HostAddress}}/api/locations/me/history
+Authorization: Bearer {{userToken}}
 
 ### 6. Actualizar Mi Contraseña
 PATCH {{FindMyFamily.Api_HostAddress}}/api/users/me/password

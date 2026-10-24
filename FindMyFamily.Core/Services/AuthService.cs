@@ -1,3 +1,4 @@
+using FindMyFamily.Core.Common;
 using FindMyFamily.Core.DTOs.Auth;
 using FindMyFamily.Core.Entities;
 using FindMyFamily.Core.Exceptions;
@@ -8,72 +9,29 @@ namespace FindMyFamily.Core.Services;
 
 public class AuthService : IAuthService
 {
+    private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(90);
+
     private readonly IUserRepository _userRepository;
     private readonly IDeviceRepository _deviceRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly IRefreshTokenHasher _refreshTokenHasher;
 
     public AuthService(
         IUserRepository userRepository,
         IDeviceRepository deviceRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        IJwtTokenGenerator jwtTokenGenerator)
+        IJwtTokenGenerator jwtTokenGenerator,
+        IRefreshTokenHasher refreshTokenHasher)
     {
         _userRepository = userRepository;
         _deviceRepository = deviceRepository;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
-    }
-
-    public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(request.PhoneNumber) || string.IsNullOrWhiteSpace(request.Password))
-        {
-            throw new BadRequestException("El número de teléfono y la contraseña son obligatorios.", "INVALID_INPUT");
-        }
-
-        var normalizedPhone = request.PhoneNumber.Trim();
-        var exists = await _userRepository.ExistsByPhoneNumberAsync(normalizedPhone, cancellationToken);
-        if (exists)
-        {
-            throw new ConflictException("El número de teléfono ya se encuentra registrado.", "PHONE_ALREADY_EXISTS");
-        }
-
-        var user = new User
-        {
-            Id = Guid.NewGuid(),
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
-            PhoneNumber = normalizedPhone,
-            PasswordHash = _passwordHasher.HashPassword(request.Password),
-            CreatedAt = DateTime.UtcNow
-        };
-
-        var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
-        var refreshTokenExpiry = DateTime.UtcNow.AddDays(90);
-
-        var device = new Device
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            DeviceModel = request.DeviceModel,
-            FcmToken = request.FcmToken,
-            RefreshToken = refreshToken,
-            RefreshTokenExpiry = refreshTokenExpiry,
-            LastActiveAt = DateTime.UtcNow,
-            IsActive = true
-        };
-
-        await _userRepository.AddAsync(user, cancellationToken);
-        await _deviceRepository.AddAsync(device, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-        var accessToken = _jwtTokenGenerator.GenerateAccessToken(user, device);
-
-        return MapToAuthResponse(user, device, accessToken, refreshToken, refreshTokenExpiry);
+        _refreshTokenHasher = refreshTokenHasher;
     }
 
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
@@ -83,17 +41,31 @@ public class AuthService : IAuthService
             throw new BadRequestException("El número de teléfono y la contraseña son obligatorios.", "INVALID_INPUT");
         }
 
-        var normalizedPhone = request.PhoneNumber.Trim();
+        var normalizedPhone = PhoneNumber.Normalize(request.PhoneNumber);
         var user = await _userRepository.GetByPhoneNumberAsync(normalizedPhone, cancellationToken);
-        if (user == null || !_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+
+        // Se verifica el hash incluso cuando el usuario no existe, contra un hash señuelo,
+        // para que el tiempo de respuesta no revele qué teléfonos están registrados.
+        var passwordOk = user != null
+            ? _passwordHasher.VerifyPassword(request.Password, user.PasswordHash)
+            : _passwordHasher.VerifyDummy(request.Password);
+
+        if (user == null || !passwordOk)
         {
             throw new UnauthorizedException("Credenciales incorrectas. Verifique su teléfono o contraseña.", "INVALID_CREDENTIALS");
         }
 
-        // Buscar dispositivo existente o crear uno nuevo para este login
-        var device = user.Devices.FirstOrDefault(d => d.IsActive && d.DeviceModel == request.DeviceModel);
         var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
-        var refreshTokenExpiry = DateTime.UtcNow.AddDays(90);
+        var refreshTokenExpiry = DateTime.UtcNow.Add(RefreshTokenLifetime);
+
+        // El dispositivo se identifica por su InstallationId, no por su modelo: dos teléfonos
+        // del mismo modelo son dos dispositivos distintos y deben mantener sesiones separadas.
+        Device? device = null;
+        if (!string.IsNullOrWhiteSpace(request.InstallationId))
+        {
+            device = await _deviceRepository.GetByInstallationIdAsync(
+                user.Id, request.InstallationId.Trim(), cancellationToken);
+        }
 
         if (device == null)
         {
@@ -101,9 +73,10 @@ public class AuthService : IAuthService
             {
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
+                InstallationId = request.InstallationId?.Trim(),
                 DeviceModel = request.DeviceModel,
                 FcmToken = request.FcmToken,
-                RefreshToken = refreshToken,
+                RefreshTokenHash = _refreshTokenHasher.Hash(refreshToken),
                 RefreshTokenExpiry = refreshTokenExpiry,
                 LastActiveAt = DateTime.UtcNow,
                 IsActive = true
@@ -112,13 +85,21 @@ public class AuthService : IAuthService
         }
         else
         {
-            device.RefreshToken = refreshToken;
+            device.RefreshTokenHash = _refreshTokenHasher.Hash(refreshToken);
             device.RefreshTokenExpiry = refreshTokenExpiry;
             device.LastActiveAt = DateTime.UtcNow;
-            if (!string.IsNullOrEmpty(request.FcmToken))
+            device.IsActive = true;
+
+            if (!string.IsNullOrWhiteSpace(request.DeviceModel))
+            {
+                device.DeviceModel = request.DeviceModel;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.FcmToken))
             {
                 device.FcmToken = request.FcmToken;
             }
+
             _deviceRepository.Update(device);
         }
 
@@ -136,7 +117,9 @@ public class AuthService : IAuthService
             throw new BadRequestException("El refresh token es obligatorio.", "INVALID_REFRESH_TOKEN");
         }
 
-        var device = await _deviceRepository.GetByRefreshTokenAsync(request.RefreshToken, cancellationToken);
+        var presentedHash = _refreshTokenHasher.Hash(request.RefreshToken);
+        var device = await _deviceRepository.GetByRefreshTokenHashAsync(presentedHash, cancellationToken);
+
         if (device == null || !device.IsActive)
         {
             throw new UnauthorizedException("Refresh token inválido.", "INVALID_REFRESH_TOKEN");
@@ -148,9 +131,9 @@ public class AuthService : IAuthService
         }
 
         var newRefreshToken = _jwtTokenGenerator.GenerateRefreshToken();
-        var newRefreshTokenExpiry = DateTime.UtcNow.AddDays(90);
+        var newRefreshTokenExpiry = DateTime.UtcNow.Add(RefreshTokenLifetime);
 
-        device.RefreshToken = newRefreshToken;
+        device.RefreshTokenHash = _refreshTokenHasher.Hash(newRefreshToken);
         device.RefreshTokenExpiry = newRefreshTokenExpiry;
         device.LastActiveAt = DateTime.UtcNow;
 
@@ -164,19 +147,63 @@ public class AuthService : IAuthService
             device.DeviceModel = request.DeviceModel;
         }
 
+        if (string.IsNullOrWhiteSpace(device.InstallationId) && !string.IsNullOrWhiteSpace(request.InstallationId))
+        {
+            device.InstallationId = request.InstallationId.Trim();
+        }
+
         _deviceRepository.Update(device);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // El filtro global de usuarios borrados deja esta navegación en null cuando la cuenta
+        // se eliminó lógicamente. No debería ocurrir (el borrado revoca los tokens), pero sin
+        // esta guarda sería una NullReferenceException y un 500 en lugar de un 401 limpio.
         var user = device.User;
+        if (user == null || user.IsDeleted)
+        {
+            throw new UnauthorizedException("La cuenta ya no está activa.", "ACCOUNT_DISABLED");
+        }
+
         var accessToken = _jwtTokenGenerator.GenerateAccessToken(user, device);
 
         return MapToAuthResponse(user, device, accessToken, newRefreshToken, newRefreshTokenExpiry);
     }
 
+    public async Task LogoutAsync(Guid userId, LogoutRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (request.AllDevices)
+        {
+            await _deviceRepository.RevokeAllRefreshTokensAsync(userId, cancellationToken);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            throw new BadRequestException(
+                "Indica el refresh token a revocar o solicita el cierre en todos los dispositivos.",
+                "REFRESH_TOKEN_REQUIRED");
+        }
+
+        var presentedHash = _refreshTokenHasher.Hash(request.RefreshToken);
+        var device = await _deviceRepository.GetByRefreshTokenHashAsync(presentedHash, cancellationToken);
+
+        // El token debe pertenecer a quien pide el cierre: si no, no se revela si existe.
+        if (device == null || device.UserId != userId)
+        {
+            throw new UnauthorizedException("Refresh token inválido.", "INVALID_REFRESH_TOKEN");
+        }
+
+        device.RefreshTokenHash = null;
+        device.RefreshTokenExpiry = null;
+        _deviceRepository.Update(device);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
     private static AuthResponseDto MapToAuthResponse(User user, Device device, string accessToken, string refreshToken, DateTime expiry)
     {
         var userDto = new UserDto(user.Id, user.FirstName, user.LastName, user.PhoneNumber, user.Role, user.CreatedAt);
-        var deviceDto = new DeviceDto(device.Id, device.DeviceModel, device.FcmToken, device.IsActive, device.LastActiveAt);
+        var deviceDto = new DeviceDto(device.Id, device.DeviceModel, device.IsActive, device.LastActiveAt);
 
         return new AuthResponseDto(
             AccessToken: accessToken,

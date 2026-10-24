@@ -24,6 +24,22 @@ public record UpdateMemberRoleRequestDto(
     string Role
 );
 
+/// <summary>Edición de los datos de un miembro por parte del admin de la familia.</summary>
+public record UpdateFamilyMemberUserRequestDto(
+    string? FirstName,
+    string? LastName,
+    string? PhoneNumber
+);
+
+/// <summary>
+/// Restablecimiento de la contraseña de un miembro por parte del admin de la familia
+/// (caso típico: un padre que gestiona la cuenta de un hijo que la ha olvidado).
+/// No pide la contraseña anterior, así que revoca todas las sesiones del miembro.
+/// </summary>
+public record ResetMemberPasswordRequestDto(
+    string NewPassword
+);
+
 public record FamilyMemberSummaryDto(
     Guid UserId,
     string FirstName,

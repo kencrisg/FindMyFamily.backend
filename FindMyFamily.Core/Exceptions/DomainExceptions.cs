@@ -41,3 +41,11 @@ public class ConflictException : AppException
     {
     }
 }
+
+public class AppTooManyRequestsException : AppException
+{
+    public AppTooManyRequestsException(string message, string code = "TOO_MANY_REQUESTS")
+        : base(code, message, HttpStatusCode.TooManyRequests)
+    {
+    }
+}

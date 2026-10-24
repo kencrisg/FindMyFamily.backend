@@ -38,6 +38,11 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("fcm_token");
 
+                    b.Property<string>("InstallationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("installation_id");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -48,13 +53,14 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_active_at");
 
-                    b.Property<string>("RefreshToken")
-                        .HasColumnType("text")
-                        .HasColumnName("refresh_token");
-
                     b.Property<DateTime?>("RefreshTokenExpiry")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("refresh_token_expiry");
+
+                    b.Property<string>("RefreshTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("refresh_token_hash");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -62,7 +68,11 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("RefreshTokenHash");
+
+                    b.HasIndex("UserId", "InstallationId")
+                        .IsUnique()
+                        .HasFilter("installation_id IS NOT NULL");
 
                     b.ToTable("devices", (string)null);
                 });
@@ -152,6 +162,52 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                     b.ToTable("locations", (string)null);
                 });
 
+            modelBuilder.Entity("FindMyFamily.Core.Entities.LocationRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("family_id");
+
+                    b.Property<DateTime?>("FulfilledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("fulfilled_at");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<Guid>("RequesterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_id");
+
+                    b.Property<Guid>("TargetUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId");
+
+                    b.HasIndex("RequesterId", "TargetUserId", "CreatedAt");
+
+                    b.HasIndex("TargetUserId", "FulfilledAt", "ExpiresAt");
+
+                    b.ToTable("location_requests", (string)null);
+                });
+
             modelBuilder.Entity("FindMyFamily.Core.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -162,6 +218,10 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
@@ -245,6 +305,33 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FindMyFamily.Core.Entities.LocationRequest", b =>
+                {
+                    b.HasOne("FindMyFamily.Core.Entities.Family", "Family")
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FindMyFamily.Core.Entities.User", "Requester")
+                        .WithMany()
+                        .HasForeignKey("RequesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FindMyFamily.Core.Entities.User", "TargetUser")
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Family");
+
+                    b.Navigation("Requester");
+
+                    b.Navigation("TargetUser");
                 });
 
             modelBuilder.Entity("FindMyFamily.Core.Entities.Family", b =>

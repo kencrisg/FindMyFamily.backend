@@ -59,6 +59,13 @@ public class FamilyRepository : IFamilyRepository
             .FirstOrDefaultAsync(fm => fm.FamilyId == familyId && fm.UserId == userId, cancellationToken);
     }
 
+    public async Task<int> CountAdminsAsync(Guid familyId, CancellationToken cancellationToken = default)
+    {
+        return await _context.FamilyMembers
+            .AsNoTracking()
+            .CountAsync(fm => fm.FamilyId == familyId && fm.Role.ToLower() == "admin", cancellationToken);
+    }
+
     public async Task AddAsync(Family family, CancellationToken cancellationToken = default)
     {
         await _context.Families.AddAsync(family, cancellationToken);
@@ -74,9 +81,28 @@ public class FamilyRepository : IFamilyRepository
         _context.FamilyMembers.Remove(member);
     }
 
+    public async Task<int> RemoveAllMembershipsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.FamilyMembers
+            .Where(fm => fm.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Marca como modificada SOLO la entidad raíz.
+    /// `DbSet.Update()` marca todo el grafo cargado, y como las consultas traen los
+    /// dispositivos y pertenencias con Include, al guardar reescribía esos valores desde
+    /// la memoria. Eso resucitaba un refresh token que se acababa de revocar con
+    /// ExecuteUpdate, dejando la sesión viva tras un cambio de contraseña.
+    /// Si la entidad ya está rastreada, el seguimiento de cambios se encarga solo.
+    /// </summary>
     public void Update(Family family)
     {
-        _context.Families.Update(family);
+        var entry = _context.Entry(family);
+        if (entry.State == EntityState.Detached)
+        {
+            entry.State = EntityState.Modified;
+        }
     }
 
     public void Delete(Family family)
