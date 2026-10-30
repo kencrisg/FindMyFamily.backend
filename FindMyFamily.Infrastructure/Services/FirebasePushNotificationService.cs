@@ -4,6 +4,7 @@ using FindMyFamily.Core.Interfaces.Services;
 using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace FindMyFamily.Infrastructure.Services;
 
@@ -19,8 +20,13 @@ public class FirebasePushNotificationService : IPushNotificationService
 
         var environment = configuration["ASPNETCORE_ENVIRONMENT"] ?? "Production";
         var isDevelopment = environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
-        var credentialsPath = ResolveCredentialsPath(configuration["FIREBASE_CREDENTIALS_PATH"]);
-        var credentialsAvailable = credentialsPath != null;
+        // En un despliegue no hay forma cómoda de subir un archivo: las credenciales llegan
+        // por variable de entorno. En local se sigue usando el archivo.
+        var credentialsJson = ReadCredentialsFromEnvironment(configuration);
+        var credentialsPath = credentialsJson == null
+            ? ResolveCredentialsPath(configuration["FIREBASE_CREDENTIALS_PATH"])
+            : null;
+        var credentialsAvailable = credentialsJson != null || credentialsPath != null;
 
         if (!credentialsAvailable && !isDevelopment)
         {
@@ -28,7 +34,8 @@ public class FirebasePushNotificationService : IPushNotificationService
             // correctamente" sin enviar nada: en una app para localizar a un familiar, un
             // fallo silencioso es peor que un error visible.
             throw new InvalidOperationException(
-                $"Las credenciales de Firebase no están disponibles en '{credentialsPath}'. " +
+                "Las credenciales de Firebase no están disponibles. Define FIREBASE_CREDENTIALS_JSON " +
+                "(contenido del JSON, en claro o en base64) o FIREBASE_CREDENTIALS_PATH apuntando al archivo. " +
                 "Son obligatorias fuera del entorno de desarrollo: sin ellas el Silent Push no se envía.");
         }
 
@@ -36,7 +43,16 @@ public class FirebasePushNotificationService : IPushNotificationService
         {
             if (FirebaseApp.DefaultInstance == null)
             {
-                if (credentialsAvailable)
+                if (credentialsJson != null)
+                {
+                    FirebaseApp.Create(new AppOptions
+                    {
+                        Credential = GoogleCredential.FromJson(credentialsJson)
+                    });
+                    _isFirebaseInitialized = true;
+                    _logger.LogInformation("Firebase Admin SDK inicializado desde la variable de entorno.");
+                }
+                else if (credentialsPath != null)
                 {
                     FirebaseApp.Create(new AppOptions
                     {
@@ -138,6 +154,39 @@ public class FirebasePushNotificationService : IPushNotificationService
         }
     }
 
+
+    /// <summary>
+    /// Lee las credenciales de la variable FIREBASE_CREDENTIALS_JSON.
+    ///
+    /// Acepta el JSON en claro o codificado en base64, porque muchos paneles de
+    /// configuración estropean los saltos de línea de la clave privada y el base64 es la
+    /// forma fiable de pegarla sin que se corrompa.
+    /// </summary>
+    private static string? ReadCredentialsFromEnvironment(IConfiguration configuration)
+    {
+        var valor = configuration["FIREBASE_CREDENTIALS_JSON"];
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return null;
+        }
+
+        valor = valor.Trim();
+
+        if (valor.StartsWith('{'))
+        {
+            return valor;
+        }
+
+        try
+        {
+            var decodificado = Encoding.UTF8.GetString(Convert.FromBase64String(valor));
+            return decodificado.TrimStart().StartsWith('{') ? decodificado : null;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// Resuelve la ruta de las credenciales.

@@ -1,0 +1,19 @@
+# Secretos: nunca deben entrar en la imagen. Las credenciales se inyectan por
+# variables de entorno (FIREBASE_CREDENTIALS_JSON, ConnectionStrings__DefaultConnection).
+.env
+.env.*
+!.env.example
+firebase-admin.json
+
+# Resultados de compilación locales (la imagen compila desde cero)
+**/bin/
+**/obj/
+
+# No hace falta para publicar
+FindMyFamily.Tests/
+docs/
+*.md
+.git/
+.gitignore
+.vscode/
+.DS_Store

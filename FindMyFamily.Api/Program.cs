@@ -11,6 +11,7 @@ using FindMyFamily.Core;
 using FindMyFamily.Core.Interfaces.Services;
 using FindMyFamily.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -118,6 +119,18 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// En producción la app vive detrás de un proxy que termina TLS (Render, Caddy, nginx…),
+// así que recibe las peticiones por HTTP. Sin leer X-Forwarded-Proto, UseHttpsRedirection
+// las considera inseguras y entra en un bucle infinito de redirecciones.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Las redes conocidas se vacían porque el proxy del proveedor tiene una IP interna
+    // que no controlamos; el contenedor solo es accesible a través de él.
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // 6. Rate limiting. Sin él, el login admitía fuerza bruta ilimitada, el alta de miembros
 // servía para enumerar números de teléfono registrados y la petición de ubicación permitía
 // mantener encendido el GPS de un familiar de forma continua.
@@ -169,6 +182,16 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
+
+// Aplica las migraciones pendientes al arrancar, si se activa por entorno.
+// Es opcional a propósito: en local se prefiere `dotnet ef database update` explícito,
+// pero en un despliegue gratuito no hay forma cómoda de ejecutar comandos contra la base.
+if (builder.Configuration["RUN_MIGRATIONS_ON_STARTUP"]?.ToLowerInvariant() is "true" or "1")
+{
+    await DatabaseMigrator.MigrateAsync(app.Services, app.Logger);
+}
 
 // Crea el Administrador de Sistema inicial si no existe ninguno (idempotente).
 await SuperAdminSeeder.SeedAsync(app.Services, app.Logger);
