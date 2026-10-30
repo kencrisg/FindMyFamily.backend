@@ -173,7 +173,7 @@ public class AuthService : IAuthService
     {
         if (request.AllDevices)
         {
-            await _deviceRepository.RevokeAllRefreshTokensAsync(userId, cancellationToken);
+            await _deviceRepository.DeactivateAllAsync(userId, cancellationToken);
             return;
         }
 
@@ -193,11 +193,28 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Refresh token inválido.", "INVALID_REFRESH_TOKEN");
         }
 
+        RevokeDevice(device);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+
+    /// <summary>
+    /// Deja el dispositivo fuera de servicio al cerrar sesión.
+    ///
+    /// No basta con revocar el refresh token: mientras el dispositivo conserve su token FCM
+    /// y siga activo, el backend lo considera alcanzable. Un familiar pedía su ubicación, el
+    /// backend respondía REQUESTED y le enviaba el Silent Push, de modo que un teléfono con
+    /// la sesión cerrada **encendía el GPS** para luego no poder reportar nada (sin sesión,
+    /// el POST da 401). Se gastaba batería, se invadía la privacidad de quien ya había
+    /// salido, y el solicitante esperaba 30 segundos en vez de ver "no disponible".
+    /// </summary>
+    private void RevokeDevice(Device device)
+    {
         device.RefreshTokenHash = null;
         device.RefreshTokenExpiry = null;
+        device.FcmToken = null;
+        device.IsActive = false;
         _deviceRepository.Update(device);
-
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
     private static AuthResponseDto MapToAuthResponse(User user, Device device, string accessToken, string refreshToken, DateTime expiry)

@@ -227,6 +227,40 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task Logout_DejaElDispositivoInalcanzableParaElSilentPush()
+    {
+        // Revocar solo el refresh token no basta: con el token FCM intacto el backend
+        // seguía considerando alcanzable un teléfono con la sesión cerrada, le enviaba el
+        // push y le encendía el GPS para nada.
+        await using var h = ServiceHarness.Create();
+        var user = await h.AddUserAsync("0999000001");
+        var sesion = await h.Auth.LoginAsync(Login(fcmToken: "fcm-activo"));
+
+        await h.Auth.LogoutAsync(user.Id, new LogoutRequestDto(sesion.RefreshToken));
+
+        var device = Assert.Single(await h.ReloadDevicesOfUserAsync(user.Id));
+        Assert.Null(device.FcmToken);
+        Assert.False(device.IsActive);
+        Assert.Null(device.RefreshTokenHash);
+    }
+
+    [Fact]
+    public async Task Logout_ConAllDevices_DejaTodosInalcanzables()
+    {
+        await using var h = ServiceHarness.Create();
+        var user = await h.AddUserAsync("0999000001");
+        await h.Auth.LoginAsync(Login(installationId: "telefono-1", fcmToken: "fcm-1"));
+        await h.Auth.LoginAsync(Login(installationId: "telefono-2", fcmToken: "fcm-2"));
+
+        await h.Auth.LogoutAsync(user.Id, new LogoutRequestDto(null, AllDevices: true));
+
+        var devices = await h.ReloadDevicesOfUserAsync(user.Id);
+        Assert.Equal(2, devices.Count);
+        Assert.All(devices, d => Assert.Null(d.FcmToken));
+        Assert.All(devices, d => Assert.False(d.IsActive));
+    }
+
+    [Fact]
     public async Task Logout_SinTokenNiAllDevices_Lanza400()
     {
         await using var h = ServiceHarness.Create();
