@@ -451,11 +451,8 @@ public class FamilyService : IFamilyService
     private static bool IsAdminRole(string? role) =>
         role != null && role.Equals("admin", StringComparison.OrdinalIgnoreCase);
 
-    private async Task<bool> IsSystemAdminAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
-        return user != null && IsAdminRole(user.Role);
-    }
+    private Task<bool> IsSystemAdminAsync(Guid userId, CancellationToken cancellationToken)
+        => _userRepository.IsSystemAdminAsync(userId, cancellationToken);
 
     private async Task ValidateSystemAdminAsync(Guid adminUserId, CancellationToken cancellationToken)
     {

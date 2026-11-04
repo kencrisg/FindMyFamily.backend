@@ -11,6 +11,13 @@ public interface IUserRepository
     Task<bool> AnySystemAdminAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Comprueba si el usuario es Administrador de Sistema sin cargar la entidad. Las
+    /// comprobaciones de permisos solo necesitan el rol: cargar el usuario con sus
+    /// dispositivos y familias en cada petición era trabajo tirado.
+    /// </summary>
+    Task<bool> IsSystemAdminAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Comprueba el teléfono incluyendo las cuentas borradas lógicamente. El número es la
     /// identidad de login y su índice único es global, así que una cuenta borrada sigue
     /// ocupando su teléfono: hay que detectarlo para devolver un conflicto claro en lugar

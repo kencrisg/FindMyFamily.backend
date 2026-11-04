@@ -38,8 +38,12 @@ public static class DependencyInjection
             connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password}";
         }
 
+        // SingleQuery explícito: es lo que EF ya hacía por defecto, pero sin declararlo avisaba
+        // en cada consulta con varios Include de colecciones. Con un puñado de dispositivos y
+        // familias por usuario, una sola consulta es más rápida que partirla en varias.
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(connectionString,
+                npgsql => npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery)));
 
         // 2. Repositorios y Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork>();

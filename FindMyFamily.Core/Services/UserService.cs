@@ -352,8 +352,7 @@ public class UserService : IUserService
 
     private async Task ValidateSystemAdminAsync(Guid adminUserId, CancellationToken cancellationToken)
     {
-        var adminUser = await _userRepository.GetByIdAsync(adminUserId, cancellationToken);
-        if (adminUser == null || !adminUser.Role.Equals("admin", StringComparison.OrdinalIgnoreCase))
+        if (!await _userRepository.IsSystemAdminAsync(adminUserId, cancellationToken))
         {
             throw new ForbiddenException("Se requieren permisos de Administrador de Sistema para realizar esta acción.", "SYSTEM_ADMIN_REQUIRED");
         }

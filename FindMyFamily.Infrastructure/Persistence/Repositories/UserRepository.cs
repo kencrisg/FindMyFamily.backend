@@ -82,6 +82,13 @@ public class UserRepository : IUserRepository
             .AnyAsync(u => u.Role.ToLower() == "admin", cancellationToken);
     }
 
+    public async Task<bool> IsSystemAdminAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Users
+            .AsNoTracking()
+            .AnyAsync(u => u.Id == userId && u.Role.ToLower() == "admin", cancellationToken);
+    }
+
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _context.Users.AddAsync(user, cancellationToken);
