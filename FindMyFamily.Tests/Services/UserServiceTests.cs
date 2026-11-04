@@ -273,4 +273,129 @@ public class UserServiceTests
         var pertenencia = Assert.Single(perfil.Families);
         Assert.Equal("admin", pertenencia.FamilyRole);
     }
+
+    // -------------------------------------------------------------------------------
+    // Datos propios (PATCH /api/users/me)
+    // -------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task UpdateMyProfile_CambiaNombreYApellido()
+    {
+        await using var h = ServiceHarness.Create();
+        var user = await h.AddUserAsync("0999000001", firstName: "Viejo", lastName: "Nombre");
+
+        var perfil = await h.Users.UpdateMyProfileAsync(user.Id, new UpdateMyProfileRequestDto("  Maria ", " Castro "));
+
+        Assert.Equal("Maria", perfil.FirstName);
+        Assert.Equal("Castro", perfil.LastName);
+        var guardado = await h.ReloadUserIncludingDeletedAsync(user.Id);
+        Assert.Equal("Maria", guardado!.FirstName);
+    }
+
+    [Theory]
+    [InlineData("", "Castro", "INVALID_INPUT")]
+    [InlineData("Maria", "   ", "INVALID_INPUT")]
+    [InlineData("NombreDeMasDeCincuentaCaracteresQueNoCabeEnLaColumna", "Castro", "NAME_TOO_LONG")]
+    public async Task UpdateMyProfile_ConDatosInvalidosLanza400(string nombre, string apellido, string codigo)
+    {
+        await using var h = ServiceHarness.Create();
+        var user = await h.AddUserAsync("0999000001");
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(
+            () => h.Users.UpdateMyProfileAsync(user.Id, new UpdateMyProfileRequestDto(nombre, apellido)));
+
+        Assert.Equal(codigo, ex.Code);
+    }
+
+    // -------------------------------------------------------------------------------
+    // Restablecer contraseña (PATCH /api/users/{id}/password)
+    // -------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AdminResetPassword_CambiaLaContrasenaYCierraSusSesiones()
+    {
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var usuario = await h.AddUserAsync("0999000002");
+        await h.AddDeviceAsync(usuario.Id, refreshToken: "sesion-abierta",
+            refreshTokenExpiry: DateTime.UtcNow.AddDays(30));
+
+        await h.Users.AdminResetPasswordAsync(admin.Id, usuario.Id, new AdminResetPasswordRequestDto("Nueva2026x"));
+
+        var guardado = await h.ReloadUserIncludingDeletedAsync(usuario.Id);
+        Assert.Equal(FakePasswordHasher.Prefix + "Nueva2026x", guardado!.PasswordHash);
+        Assert.All(await h.ReloadDevicesOfUserAsync(usuario.Id), d => Assert.Null(d.RefreshTokenHash));
+    }
+
+    [Fact]
+    public async Task AdminResetPassword_FuncionaConUnUsuarioSinFamilia()
+    {
+        // Es la razón de existir de este endpoint: el restablecimiento por familia no
+        // alcanza a quien no pertenece a ninguna.
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var huerfano = await h.AddUserAsync("0999000002");
+
+        await h.Users.AdminResetPasswordAsync(admin.Id, huerfano.Id, new AdminResetPasswordRequestDto("Nueva2026x"));
+
+        var guardado = await h.ReloadUserIncludingDeletedAsync(huerfano.Id);
+        Assert.Equal(FakePasswordHasher.Prefix + "Nueva2026x", guardado!.PasswordHash);
+    }
+
+    [Fact]
+    public async Task AdminResetPassword_NoSirveParaCuentasDeAdministrador()
+    {
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(
+            () => h.Users.AdminResetPasswordAsync(admin.Id, admin.Id, new AdminResetPasswordRequestDto("Nueva2026x")));
+
+        Assert.Equal("CANNOT_MANAGE_SYSTEM_ADMIN", ex.Code);
+    }
+
+    [Fact]
+    public async Task AdminResetPassword_UnUsuarioNormalNoPuedeUsarlo()
+    {
+        await using var h = ServiceHarness.Create();
+        var usuario = await h.AddUserAsync("0999000001");
+        var victima = await h.AddUserAsync("0999000002");
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(
+            () => h.Users.AdminResetPasswordAsync(usuario.Id, victima.Id, new AdminResetPasswordRequestDto("Nueva2026x")));
+
+        Assert.Equal("SYSTEM_ADMIN_REQUIRED", ex.Code);
+    }
+
+    [Fact]
+    public async Task AdminResetPassword_AplicaLaPoliticaDeContrasenas()
+    {
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var usuario = await h.AddUserAsync("0999000002");
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(
+            () => h.Users.AdminResetPasswordAsync(admin.Id, usuario.Id, new AdminResetPasswordRequestDto("corta")));
+
+        Assert.Equal("PASSWORD_TOO_SHORT", ex.Code);
+    }
+
+    // -------------------------------------------------------------------------------
+    // El Administrador de Sistema no pertenece a familias
+    // -------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task AdminUpdateUser_NoPuedeMeterAlSuperAdminEnUnaFamilia()
+    {
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var familia = await h.AddFamilyAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => h.Users.AdminUpdateUserAsync(admin.Id, admin.Id,
+                new AdminUpdateUserRequestDto(null, null, null, familia.Id, "admin")));
+
+        Assert.Equal("SYSTEM_ADMIN_CANNOT_JOIN_FAMILY", ex.Code);
+        Assert.Empty(await h.Db.FamilyMembers.IgnoreQueryFilters().Where(fm => fm.UserId == admin.Id).ToListAsync());
+    }
 }

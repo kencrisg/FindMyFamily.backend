@@ -60,6 +60,19 @@ public class UsersController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Actualiza el nombre y el apellido del usuario autenticado.
+    /// </summary>
+    [HttpPatch("me")]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateMyProfileRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _userService.UpdateMyProfileAsync(CurrentUserId, request, cancellationToken);
+        return Ok(response);
+    }
+
     // =========================================================================
     // ENDPOINTS DE ADMINISTRADOR DE SISTEMA ([Authorize(Roles = "admin")])
     // =========================================================================
@@ -125,6 +138,22 @@ public class UsersController : ApiControllerBase
     {
         var response = await _userService.AdminUpdateUserAsync(CurrentUserId, id, request, cancellationToken);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Restablece la contraseña de un usuario y cierra todas sus sesiones (Solo Super Administrador).
+    /// </summary>
+    [Authorize(Roles = "admin")]
+    [HttpPatch("{id:guid}/password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AdminResetPassword(Guid id, [FromBody] AdminResetPasswordRequestDto request, CancellationToken cancellationToken)
+    {
+        await _userService.AdminResetPasswordAsync(CurrentUserId, id, request, cancellationToken);
+        return NoContent();
     }
 
     /// <summary>

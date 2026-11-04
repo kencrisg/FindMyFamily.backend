@@ -56,6 +56,37 @@ public class FamilyServiceTests
             () => h.Families.DeleteFamilyAsync(adminFamiliar.Id, familia.Id));
     }
 
+    [Fact]
+    public async Task DeleteFamily_ConMiembrosLanza409YNoBorraNada()
+    {
+        // Sin esta regla, quien solo pertenecía a esta familia quedaba como cuenta huérfana.
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var familia = await h.AddFamilyAsync();
+        var miembro = await h.AddUserAsync("0999000002");
+        await h.AddMemberAsync(familia.Id, miembro.Id);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => h.Families.DeleteFamilyAsync(admin.Id, familia.Id));
+
+        Assert.Equal("FAMILY_NOT_EMPTY", ex.Code);
+        Assert.NotNull(await h.Db.Families.FindAsync(familia.Id));
+        Assert.Single(await h.Db.FamilyMembers.IgnoreQueryFilters().Where(fm => fm.FamilyId == familia.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task DeleteFamily_VaciaSeElimina()
+    {
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var familia = await h.AddFamilyAsync();
+
+        await h.Families.DeleteFamilyAsync(admin.Id, familia.Id);
+
+        h.Db.ChangeTracker.Clear();
+        Assert.Null(await h.Db.Families.FindAsync(familia.Id));
+    }
+
     // -------------------------------------------------------------------------------
     // Visibilidad de la familia
     // -------------------------------------------------------------------------------
@@ -533,5 +564,35 @@ public class FamilyServiceTests
         await h.AddMemberAsync(familia.Id, adminFamiliar.Id, "admin");
 
         return (superAdmin.Id, familia.Id, adminFamiliar.Id);
+    }
+
+    [Fact]
+    public async Task AddMemberByPhone_NoPuedeVincularAlSuperAdmin()
+    {
+        // Si el super admin entrara en una familia podría pedir y ver las ubicaciones de
+        // sus miembros: su papel es administrar la plataforma, no usarla como familiar.
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var familia = await h.AddFamilyAsync();
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => h.Families.AddMemberByPhoneAsync(admin.Id, familia.Id,
+                new AddFamilyMemberRequestDto("0999000001")));
+
+        Assert.Equal("SYSTEM_ADMIN_CANNOT_JOIN_FAMILY", ex.Code);
+    }
+
+    [Fact]
+    public async Task CreateMemberUser_ConNombreDemasiadoLargoLanza400EnVezDe500()
+    {
+        await using var h = ServiceHarness.Create();
+        var admin = await h.AddUserAsync("0999000001", role: "admin");
+        var familia = await h.AddFamilyAsync();
+
+        var ex = await Assert.ThrowsAsync<BadRequestException>(
+            () => h.Families.CreateMemberUserAsync(admin.Id, familia.Id,
+                new CreateFamilyMemberUserRequestDto(new string('a', 51), "Castro", "0999000002", "Valida2026")));
+
+        Assert.Equal("NAME_TOO_LONG", ex.Code);
     }
 }

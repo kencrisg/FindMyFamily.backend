@@ -44,3 +44,14 @@ public record AdminUpdateUserRequestDto(
     Guid? FamilyId,
     string? FamilyRole
 );
+
+/// <summary>Datos personales que el propio usuario puede cambiar sin intervención de un admin.</summary>
+public record UpdateMyProfileRequestDto(
+    string FirstName,
+    string LastName
+);
+
+/// <summary>Restablecimiento de contraseña por el Administrador de Sistema.</summary>
+public record AdminResetPasswordRequestDto(
+    string NewPassword
+);

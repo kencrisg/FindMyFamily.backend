@@ -102,10 +102,21 @@ public class FamilyService : IFamilyService
     {
         await ValidateSystemAdminAsync(adminUserId, cancellationToken);
 
-        var family = await _familyRepository.GetByIdAsync(familyId, cancellationToken);
+        var family = await _familyRepository.GetByIdWithMembersAsync(familyId, cancellationToken);
         if (family == null)
         {
             throw new NotFoundException("Grupo familiar no encontrado.", "FAMILY_NOT_FOUND");
+        }
+
+        // Solo se elimina una familia vacía. El borrado en cascada se llevaba sus pertenencias
+        // sin aplicar la regla de RemoveMemberAsync, así que quien solo estaba en esta familia
+        // quedaba como cuenta huérfana: activa, pero sin nadie a quien ver. Quitando antes a
+        // cada miembro, cada uno recibe el trato correcto (desvincular o borrado lógico).
+        if (family.FamilyMembers.Count > 0)
+        {
+            throw new ConflictException(
+                "No se puede eliminar una familia con miembros. Quita primero a todos sus miembros.",
+                "FAMILY_NOT_EMPTY");
         }
 
         _familyRepository.Delete(family);
@@ -167,8 +178,8 @@ public class FamilyService : IFamilyService
         var newMemberUser = new User
         {
             Id = Guid.NewGuid(),
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
+            FirstName = PersonName.Normalize(request.FirstName, "nombre"),
+            LastName = PersonName.Normalize(request.LastName, "apellido"),
             PhoneNumber = normalizedPhone,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             Role = "user",
@@ -218,6 +229,8 @@ public class FamilyService : IFamilyService
             throw new NotFoundException("No se encontró ningún usuario registrado con ese número de teléfono.", "USER_NOT_FOUND");
         }
 
+        EnsureNotSystemAdmin(targetUser);
+
         var alreadyMember = await _familyRepository.IsMemberAsync(familyId, targetUser.Id, cancellationToken);
         if (alreadyMember)
         {
@@ -253,12 +266,12 @@ public class FamilyService : IFamilyService
 
         if (!string.IsNullOrWhiteSpace(request.FirstName))
         {
-            targetUser.FirstName = request.FirstName.Trim();
+            targetUser.FirstName = PersonName.Normalize(request.FirstName, "nombre");
         }
 
         if (!string.IsNullOrWhiteSpace(request.LastName))
         {
-            targetUser.LastName = request.LastName.Trim();
+            targetUser.LastName = PersonName.Normalize(request.LastName, "apellido");
         }
 
         if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
@@ -450,6 +463,21 @@ public class FamilyService : IFamilyService
 
     private static bool IsAdminRole(string? role) =>
         role != null && role.Equals("admin", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// El Administrador de Sistema administra la plataforma, no forma parte de ella: si
+    /// perteneciera a una familia podría pedir y ver las ubicaciones de sus miembros. Si
+    /// quiere usar la app como familiar, necesita una cuenta normal como cualquiera.
+    /// </summary>
+    internal static void EnsureNotSystemAdmin(Entities.User user)
+    {
+        if (IsAdminRole(user.Role))
+        {
+            throw new ConflictException(
+                "Un Administrador de Sistema no puede pertenecer a un grupo familiar. Crea una cuenta de usuario normal para usar la app como familiar.",
+                "SYSTEM_ADMIN_CANNOT_JOIN_FAMILY");
+        }
+    }
 
     private Task<bool> IsSystemAdminAsync(Guid userId, CancellationToken cancellationToken)
         => _userRepository.IsSystemAdminAsync(userId, cancellationToken);

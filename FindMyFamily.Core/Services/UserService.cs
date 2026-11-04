@@ -110,6 +110,63 @@ public class UserService : IUserService
         }, cancellationToken);
     }
 
+    public async Task<UserProfileDto> UpdateMyProfileAsync(Guid userId, UpdateMyProfileRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var firstName = PersonName.Normalize(request.FirstName, "nombre");
+        var lastName = PersonName.Normalize(request.LastName, "apellido");
+
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            throw new NotFoundException("Usuario no encontrado.", "USER_NOT_FOUND");
+        }
+
+        user.FirstName = firstName;
+        user.LastName = lastName;
+        user.UpdatedAt = DateTime.UtcNow;
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return MapToUserProfileDto(user);
+    }
+
+    /// <summary>
+    /// Restablece la contraseña de cualquier usuario. Existe porque el restablecimiento por
+    /// familia no cubre a quien no pertenece a ninguna. Igual que aquel, no pide la contraseña
+    /// anterior, así que cierra todas las sesiones del usuario.
+    ///
+    /// No sirve para cuentas de Administrador de Sistema: el admin cambia la suya desde su
+    /// perfil, demostrando la contraseña actual.
+    /// </summary>
+    public async Task AdminResetPasswordAsync(Guid adminUserId, Guid targetUserId, AdminResetPasswordRequestDto request, CancellationToken cancellationToken = default)
+    {
+        await ValidateSystemAdminAsync(adminUserId, cancellationToken);
+        PasswordPolicy.Validate(request.NewPassword);
+
+        var user = await _userRepository.GetByIdAsync(targetUserId, cancellationToken);
+        if (user == null)
+        {
+            throw new NotFoundException("Usuario no encontrado.", "USER_NOT_FOUND");
+        }
+
+        if (user.Role.Equals("admin", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenException(
+                "La contraseña de un Administrador de Sistema solo se cambia desde su propio perfil.",
+                "CANNOT_MANAGE_SYSTEM_ADMIN");
+        }
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+            _userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _deviceRepository.RevokeAllRefreshTokensAsync(targetUserId, cancellationToken);
+        }, cancellationToken);
+    }
+
     public async Task<UserProfileDto> AdminCreateUserAsync(Guid adminUserId, AdminCreateUserRequestDto request, CancellationToken cancellationToken = default)
     {
         await ValidateSystemAdminAsync(adminUserId, cancellationToken);
@@ -140,8 +197,8 @@ public class UserService : IUserService
         var user = new User
         {
             Id = Guid.NewGuid(),
-            FirstName = request.FirstName.Trim(),
-            LastName = request.LastName.Trim(),
+            FirstName = PersonName.Normalize(request.FirstName, "nombre"),
+            LastName = PersonName.Normalize(request.LastName, "apellido"),
             PhoneNumber = normalizedPhone,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             Role = "user", // Rol normal de sistema en tabla users
@@ -191,12 +248,12 @@ public class UserService : IUserService
 
         if (!string.IsNullOrWhiteSpace(request.FirstName))
         {
-            user.FirstName = request.FirstName.Trim();
+            user.FirstName = PersonName.Normalize(request.FirstName, "nombre");
         }
 
         if (!string.IsNullOrWhiteSpace(request.LastName))
         {
-            user.LastName = request.LastName.Trim();
+            user.LastName = PersonName.Normalize(request.LastName, "apellido");
         }
 
         if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
@@ -212,6 +269,8 @@ public class UserService : IUserService
         // Si se especificó cambio de familia o de rol de familia
         if (request.FamilyId.HasValue && request.FamilyId.Value != Guid.Empty)
         {
+            FamilyService.EnsureNotSystemAdmin(user);
+
             var targetFamily = await _familyRepository.GetByIdAsync(request.FamilyId.Value, cancellationToken);
             if (targetFamily == null)
             {
