@@ -157,7 +157,7 @@ public class UserServiceTests
         var borrado = await h.ReloadUserIncludingDeletedAsync(victima.Id);
         Assert.NotNull(borrado);
         Assert.True(borrado!.IsDeleted);
-        Assert.Empty(await h.Db.FamilyMembers.Where(fm => fm.UserId == victima.Id).ToListAsync());
+        Assert.Empty(await h.Db.FamilyMembers.IgnoreQueryFilters().Where(fm => fm.UserId == victima.Id).ToListAsync());
 
         var dispositivo = Assert.Single(await h.ReloadDevicesOfUserAsync(victima.Id));
         Assert.False(dispositivo.IsActive);
@@ -197,7 +197,7 @@ public class UserServiceTests
         Assert.False(restaurado!.IsDeleted);
 
         // La cuenta vuelve sin familia: restaurar no reinserta a nadie en ningún grupo.
-        Assert.Empty(await h.Db.FamilyMembers.Where(fm => fm.UserId == victima.Id).ToListAsync());
+        Assert.Empty(await h.Db.FamilyMembers.IgnoreQueryFilters().Where(fm => fm.UserId == victima.Id).ToListAsync());
     }
 
     [Fact]
@@ -219,7 +219,7 @@ public class UserServiceTests
         await using var h = ServiceHarness.Create();
         var admin = await h.AddUserAsync("0999000001", role: "admin");
         await h.AddUserAsync("0999000002");
-        await h.AddUserAsync("0999000003", deletedAt: DateTime.UtcNow);
+        await h.AddUserAsync("0999000003", isDeleted: true);
 
         var papelera = await h.Users.AdminGetDeletedUsersAsync(admin.Id);
 
@@ -233,7 +233,7 @@ public class UserServiceTests
         await using var h = ServiceHarness.Create();
         var admin = await h.AddUserAsync("0999000001", role: "admin");
         await h.AddUserAsync("0999000002");
-        await h.AddUserAsync("0999000003", deletedAt: DateTime.UtcNow);
+        await h.AddUserAsync("0999000003", isDeleted: true);
 
         var usuarios = await h.Users.AdminGetAllUsersAsync(admin.Id);
 

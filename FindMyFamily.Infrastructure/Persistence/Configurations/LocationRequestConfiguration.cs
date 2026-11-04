@@ -62,5 +62,9 @@ public class LocationRequestConfiguration : IEntityTypeConfiguration<LocationReq
             .WithMany()
             .HasForeignKey(lr => lr.FamilyId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Filtro equivalente al de User, en los dos extremos: una solicitud en la que
+        // cualquiera de los dos participantes está borrado ya no puede completarse.
+        builder.HasQueryFilter(lr => !lr.Requester.IsDeleted && !lr.TargetUser.IsDeleted);
     }
 }

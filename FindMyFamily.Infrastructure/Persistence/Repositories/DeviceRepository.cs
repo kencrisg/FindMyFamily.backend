@@ -72,6 +72,10 @@ public class DeviceRepository : IDeviceRepository
     public async Task<int> DeactivateAllAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
+            // Sin el filtro global: el borrado lógico guarda IsDeleted ANTES de esta limpieza,
+            // así que con el filtro activo no encontraría ninguna fila y el usuario borrado
+            // conservaría sus familias y su teléfono seguiría recibiendo push.
+            .IgnoreQueryFilters()
             .Where(d => d.UserId == userId)
             .ExecuteUpdateAsync(
                 setters => setters
@@ -85,6 +89,10 @@ public class DeviceRepository : IDeviceRepository
     public async Task<int> RevokeAllRefreshTokensAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
+            // Sin el filtro global: el borrado lógico guarda IsDeleted ANTES de esta limpieza,
+            // así que con el filtro activo no encontraría ninguna fila y el usuario borrado
+            // conservaría sus familias y su teléfono seguiría recibiendo push.
+            .IgnoreQueryFilters()
             .Where(d => d.UserId == userId)
             .ExecuteUpdateAsync(
                 setters => setters

@@ -374,7 +374,7 @@ public class FamilyService : IFamilyService
     /// </summary>
     private async Task SoftDeleteAccountAsync(Entities.User user, CancellationToken cancellationToken)
     {
-        user.DeletedAt = DateTime.UtcNow;
+        user.IsDeleted = true;
         user.UpdatedAt = DateTime.UtcNow;
         _userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

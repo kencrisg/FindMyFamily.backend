@@ -406,7 +406,7 @@ public class FamilyServiceTests
         Assert.Null(await h.Db.Users.FirstOrDefaultAsync(u => u.Id == miembro.Id));
 
         // Sin pertenencias y sin sesiones que sobrevivan.
-        Assert.Empty(await h.Db.FamilyMembers.Where(fm => fm.UserId == miembro.Id).ToListAsync());
+        Assert.Empty(await h.Db.FamilyMembers.IgnoreQueryFilters().Where(fm => fm.UserId == miembro.Id).ToListAsync());
         var dispositivo = Assert.Single(await h.ReloadDevicesOfUserAsync(miembro.Id));
         Assert.False(dispositivo.IsActive);
         Assert.Null(dispositivo.RefreshTokenHash);
@@ -446,7 +446,7 @@ public class FamilyServiceTests
         var sigueActivo = await h.Db.Users.FirstOrDefaultAsync(u => u.Id == miembro.Id);
         Assert.NotNull(sigueActivo);
         Assert.False(sigueActivo!.IsDeleted);
-        Assert.Empty(await h.Db.FamilyMembers.Where(fm => fm.UserId == miembro.Id).ToListAsync());
+        Assert.Empty(await h.Db.FamilyMembers.IgnoreQueryFilters().Where(fm => fm.UserId == miembro.Id).ToListAsync());
     }
 
     [Fact]
@@ -510,7 +510,7 @@ public class FamilyServiceTests
         await using var h = ServiceHarness.Create();
         var familia = await h.AddFamilyAsync();
         var activo = await h.AddUserAsync("0999000003", firstName: "Luis");
-        var borrado = await h.AddUserAsync("0999000004", firstName: "Fantasma", deletedAt: DateTime.UtcNow);
+        var borrado = await h.AddUserAsync("0999000004", firstName: "Fantasma", isDeleted: true);
         await h.AddMemberAsync(familia.Id, activo.Id, "admin");
         // Pertenencia residual de una cuenta borrada (no debería existir, pero si existe
         // no puede traducirse en un miembro con los campos vacíos).

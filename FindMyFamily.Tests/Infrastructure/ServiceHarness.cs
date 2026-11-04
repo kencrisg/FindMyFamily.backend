@@ -83,7 +83,7 @@ public sealed class ServiceHarness : IAsyncDisposable
         string password = "Valida2026",
         string firstName = "Nombre",
         string lastName = "Apellido",
-        DateTime? deletedAt = null)
+        bool isDeleted = false)
     {
         var user = new User
         {
@@ -94,7 +94,7 @@ public sealed class ServiceHarness : IAsyncDisposable
             PasswordHash = PasswordHasher.HashPassword(password),
             Role = role,
             CreatedAt = DateTime.UtcNow,
-            DeletedAt = deletedAt
+            IsDeleted = isDeleted
         };
 
         Db.Users.Add(user);
@@ -199,16 +199,19 @@ public sealed class ServiceHarness : IAsyncDisposable
     /// `ExecuteUpdateAsync`: esa operación va directa al motor y no actualiza las entidades
     /// ya rastreadas, así que una consulta normal devolvería el valor viejo en memoria.
     /// </summary>
+    // Los Reload* leen lo que hay en la base de datos, no lo que vería la app: se saltan
+    // el filtro de borrado lógico para poder comprobar, por ejemplo, que los dispositivos
+    // de una cuenta borrada quedaron desactivados.
     public async Task<Device?> ReloadDeviceAsync(Guid deviceId)
     {
         Db.ChangeTracker.Clear();
-        return await Db.Devices.AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId);
+        return await Db.Devices.IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(d => d.Id == deviceId);
     }
 
     public async Task<List<Device>> ReloadDevicesOfUserAsync(Guid userId)
     {
         Db.ChangeTracker.Clear();
-        return await Db.Devices.AsNoTracking().Where(d => d.UserId == userId).ToListAsync();
+        return await Db.Devices.IgnoreQueryFilters().AsNoTracking().Where(d => d.UserId == userId).ToListAsync();
     }
 
     /// <summary>Relee un usuario saltándose el filtro de borrado lógico.</summary>

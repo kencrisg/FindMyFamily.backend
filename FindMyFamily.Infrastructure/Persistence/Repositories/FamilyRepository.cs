@@ -84,6 +84,10 @@ public class FamilyRepository : IFamilyRepository
     public async Task<int> RemoveAllMembershipsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.FamilyMembers
+            // Sin el filtro global: el borrado lógico guarda IsDeleted ANTES de esta limpieza,
+            // así que con el filtro activo no encontraría ninguna fila y el usuario borrado
+            // conservaría sus familias y su teléfono seguiría recibiendo push.
+            .IgnoreQueryFilters()
             .Where(fm => fm.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
     }

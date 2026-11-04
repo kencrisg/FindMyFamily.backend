@@ -49,16 +49,17 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.UpdatedAt)
             .HasColumnName("updated_at");
 
-        builder.Property(u => u.DeletedAt)
-            .HasColumnName("deleted_at");
+        builder.Property(u => u.IsDeleted)
+            .HasColumnName("is_deleted")
+            .HasDefaultValue(false)
+            .IsRequired();
 
-        builder.Ignore(u => u.IsDeleted);
 
         // Filtro global: toda consulta sobre Users excluye las cuentas borradas sin que
         // cada repositorio tenga que recordarlo. Para operar sobre ellas (restaurar, o
         // detectar que un teléfono pertenece a una cuenta borrada) hay que pedirlo
         // explícitamente con IgnoreQueryFilters().
-        builder.HasQueryFilter(u => u.DeletedAt == null);
+        builder.HasQueryFilter(u => !u.IsDeleted);
 
         // Relaciones
         builder.HasMany(u => u.Devices)

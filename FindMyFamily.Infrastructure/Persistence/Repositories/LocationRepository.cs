@@ -30,6 +30,9 @@ public class LocationRepository : ILocationRepository
     public async Task<int> DeleteAllByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.Locations
+            // Sin el filtro global: es un borrado explícito por usuario y debe alcanzar
+            // todas sus filas, esté la cuenta activa o borrada lógicamente.
+            .IgnoreQueryFilters()
             .Where(l => l.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
     }

@@ -17,7 +17,9 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
 // 1. Carga variables de entorno desde .env
-Env.TraversePath().Load();
+// NoClobber: el .env solo rellena lo que falta. Sin él, sus valores pisaban las variables
+// reales del entorno, y lo que se definía en la terminal o en el hosting se ignoraba en silencio.
+Env.NoClobber().TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -127,7 +129,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     // Las redes conocidas se vacían porque el proxy del proveedor tiene una IP interna
     // que no controlamos; el contenedor solo es accesible a través de él.
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
@@ -195,6 +197,12 @@ if (builder.Configuration["RUN_MIGRATIONS_ON_STARTUP"]?.ToLowerInvariant() is "t
 
 // Crea el Administrador de Sistema inicial si no existe ninguno (idempotente).
 await SuperAdminSeeder.SeedAsync(app.Services, app.Logger);
+
+// Firebase se inicializa aquí y no en la primera petición de ubicación. Es un singleton y
+// .NET solo lo construye cuando alguien lo pide, así que antes no se sabía si las credenciales
+// eran válidas hasta que un familiar pedía una ubicación; y la comprobación que debe tumbar el
+// arranque en producción cuando faltan las credenciales no se ejecutaba al arrancar.
+app.Services.GetRequiredService<IPushNotificationService>();
 
 // 7. Middleware global de excepciones
 app.UseMiddleware<ExceptionHandlingMiddleware>();

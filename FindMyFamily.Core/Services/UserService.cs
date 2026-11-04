@@ -264,7 +264,7 @@ public class UserService : IUserService
         // ubicaciones ni romper la auditoría de peticiones que le apuntan.
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            user.DeletedAt = DateTime.UtcNow;
+            user.IsDeleted = true;
             user.UpdatedAt = DateTime.UtcNow;
             _userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -293,7 +293,7 @@ public class UserService : IUserService
             throw new ConflictException("La cuenta no está eliminada.", "USER_NOT_DELETED");
         }
 
-        user.DeletedAt = null;
+        user.IsDeleted = false;
         user.UpdatedAt = DateTime.UtcNow;
         _userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

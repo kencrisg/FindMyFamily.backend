@@ -57,5 +57,10 @@ public class DeviceConfiguration : IEntityTypeConfiguration<Device>
             .WithMany(u => u.Devices)
             .HasForeignKey(d => d.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Filtro equivalente al de User: sin él, al ocultar al usuario borrado esta fila
+        // quedaba huérfana a medias (visible sola, desaparecida en cuanto se hacía Include
+        // del usuario, porque la relación obligatoria se traduce a INNER JOIN).
+        builder.HasQueryFilter(d => !d.User.IsDeleted);
     }
 }

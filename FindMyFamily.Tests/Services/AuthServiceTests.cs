@@ -76,7 +76,7 @@ public class AuthServiceTests
     public async Task Login_DeUnaCuentaBorradaLogicamente_Lanza401()
     {
         await using var h = ServiceHarness.Create();
-        await h.AddUserAsync("0999000001", deletedAt: DateTime.UtcNow);
+        await h.AddUserAsync("0999000001", isDeleted: true);
 
         var ex = await Assert.ThrowsAsync<UnauthorizedException>(() => h.Auth.LoginAsync(Login()));
         Assert.Equal("INVALID_CREDENTIALS", ex.Code);

@@ -78,7 +78,7 @@ public class DeviceServiceTests
         await h.Devices.UnlinkDeviceAsync(user.Id, device.Id);
 
         h.Db.ChangeTracker.Clear();
-        Assert.Null(await h.Db.Devices.FirstOrDefaultAsync(d => d.Id == device.Id));
+        Assert.Null(await h.Db.Devices.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Id == device.Id));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class DeviceServiceTests
         await h.Devices.UnlinkDeviceAsync(admin.Id, device.Id);
 
         h.Db.ChangeTracker.Clear();
-        Assert.Null(await h.Db.Devices.FirstOrDefaultAsync(d => d.Id == device.Id));
+        Assert.Null(await h.Db.Devices.IgnoreQueryFilters().FirstOrDefaultAsync(d => d.Id == device.Id));
     }
 
     [Fact]

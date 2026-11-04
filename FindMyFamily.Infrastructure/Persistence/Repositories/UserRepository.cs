@@ -66,8 +66,10 @@ public class UserRepository : IUserRepository
         return await _context.Users
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(u => u.DeletedAt != null)
-            .OrderByDescending(u => u.DeletedAt)
+            .Where(u => u.IsDeleted)
+            // UpdatedAt se fija al borrar y una cuenta borrada ya no se puede editar, así que
+            // sirve para mostrar primero las eliminadas más recientemente.
+            .OrderByDescending(u => u.UpdatedAt)
             .Skip((safePage - 1) * safePageSize)
             .Take(safePageSize)
             .ToListAsync(cancellationToken);

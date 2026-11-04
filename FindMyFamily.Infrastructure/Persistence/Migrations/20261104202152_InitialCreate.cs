@@ -33,8 +33,10 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                     last_name = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     phone_number = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     password_hash = table.Column<string>(type: "text", nullable: false),
+                    role = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false, defaultValue: "user"),
                     created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    is_deleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
                 },
                 constraints: table =>
                 {
@@ -47,8 +49,9 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    installation_id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                     fcm_token = table.Column<string>(type: "text", nullable: true),
-                    refresh_token = table.Column<string>(type: "text", nullable: true),
+                    refresh_token_hash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
                     refresh_token_expiry = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     device_model = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     last_active_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -92,6 +95,42 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "location_requests",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    requester_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    target_user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    family_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    expires_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    fulfilled_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    location_id = table.Column<Guid>(type: "uuid", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_location_requests", x => x.id);
+                    table.ForeignKey(
+                        name: "FK_location_requests_families_family_id",
+                        column: x => x.family_id,
+                        principalTable: "families",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_location_requests_users_requester_id",
+                        column: x => x.requester_id,
+                        principalTable: "users",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_location_requests_users_target_user_id",
+                        column: x => x.target_user_id,
+                        principalTable: "users",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "locations",
                 columns: table => new
                 {
@@ -113,14 +152,36 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_devices_user_id",
+                name: "IX_devices_refresh_token_hash",
                 table: "devices",
-                column: "user_id");
+                column: "refresh_token_hash");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_devices_user_id_installation_id",
+                table: "devices",
+                columns: new[] { "user_id", "installation_id" },
+                unique: true,
+                filter: "installation_id IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_family_members_user_id",
                 table: "family_members",
                 column: "user_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_location_requests_family_id",
+                table: "location_requests",
+                column: "family_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_location_requests_requester_id_target_user_id_created_at",
+                table: "location_requests",
+                columns: new[] { "requester_id", "target_user_id", "created_at" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_location_requests_target_user_id_fulfilled_at_expires_at",
+                table: "location_requests",
+                columns: new[] { "target_user_id", "fulfilled_at", "expires_at" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_locations_captured_at",
@@ -152,6 +213,9 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "family_members");
+
+            migrationBuilder.DropTable(
+                name: "location_requests");
 
             migrationBuilder.DropTable(
                 name: "locations");

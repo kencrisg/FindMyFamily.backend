@@ -431,7 +431,7 @@ public class LocationServiceTests
 
         Assert.Equal(2, borradas);
         h.Db.ChangeTracker.Clear();
-        Assert.Empty(await h.Db.Locations.Where(l => l.UserId == padre).ToListAsync());
+        Assert.Empty(await h.Db.Locations.IgnoreQueryFilters().Where(l => l.UserId == padre).ToListAsync());
         Assert.Single(await h.Db.Locations.Where(l => l.UserId == madre).ToListAsync());
     }
 

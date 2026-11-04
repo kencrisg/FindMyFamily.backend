@@ -25,18 +25,22 @@ public static class SuperAdminSeeder
         var phone = configuration["SUPERADMIN_PHONE"];
         var password = configuration["SUPERADMIN_PASSWORD"];
 
-        if (string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(password))
-        {
-            logger.LogInformation(
-                "SUPERADMIN_PHONE/SUPERADMIN_PASSWORD no configurados: se omite la creación del Administrador de Sistema inicial.");
-            return;
-        }
-
         var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
 
         if (await userRepository.AnySystemAdminAsync(cancellationToken))
         {
             logger.LogInformation("Ya existe un Administrador de Sistema: no se crea ninguno nuevo.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(password))
+        {
+            // Sin administrador y sin variables, la API arranca pero nadie puede crear usuarios
+            // ni familias: se avisa con claridad en lugar de un mensaje informativo que pasa
+            // desapercibido. Una vez creado el admin, faltar estas variables es lo esperado.
+            logger.LogWarning(
+                "No existe ningún Administrador de Sistema y SUPERADMIN_PHONE/SUPERADMIN_PASSWORD no están definidos. " +
+                "Nadie podrá crear familias ni usuarios: define ambas variables y reinicia la API.");
             return;
         }
 
