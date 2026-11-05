@@ -17,6 +17,9 @@ public interface IUserRepository
     /// </summary>
     Task<bool> IsSystemAdminAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    /// <summary>Si el usuario comparte su ubicación, sin cargar la entidad.</summary>
+    Task<bool> IsLocationSharingEnabledAsync(Guid userId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Comprueba el teléfono incluyendo las cuentas borradas lógicamente. El número es la
     /// identidad de login y su índice único es global, así que una cuenta borrada sigue

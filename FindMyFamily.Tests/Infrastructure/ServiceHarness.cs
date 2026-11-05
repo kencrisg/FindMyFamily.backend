@@ -65,7 +65,7 @@ public sealed class ServiceHarness : IAsyncDisposable
             unitOfWork, PasswordHasher);
 
         Locations = new LocationService(locationRepository, locationRequestRepository,
-            familyRepository, deviceRepository, unitOfWork, Push, Notifier);
+            familyRepository, deviceRepository, unitOfWork, Push, Notifier, userRepository);
 
         Devices = new DeviceService(deviceRepository, userRepository, unitOfWork);
     }

@@ -130,6 +130,22 @@ public class UserService : IUserService
         return MapToUserProfileDto(user);
     }
 
+    public async Task<UserProfileDto> SetLocationSharingAsync(Guid userId, UpdateLocationSharingRequestDto request, CancellationToken cancellationToken = default)
+    {
+        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            throw new NotFoundException("Usuario no encontrado.", "USER_NOT_FOUND");
+        }
+
+        user.LocationSharingEnabled = request.Enabled;
+        user.UpdatedAt = DateTime.UtcNow;
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return MapToUserProfileDto(user);
+    }
+
     /// <summary>
     /// Restablece la contraseña de cualquier usuario. Existe porque el restablecimiento por
     /// familia no cubre a quien no pertenece a ninguna. Igual que aquel, no pide la contraseña
@@ -434,7 +450,8 @@ public class UserService : IUserService
             SystemRole: user.Role,
             Families: families,
             CreatedAt: user.CreatedAt,
-            UpdatedAt: user.UpdatedAt
+            UpdatedAt: user.UpdatedAt,
+            LocationSharingEnabled: user.LocationSharingEnabled
         );
     }
 }

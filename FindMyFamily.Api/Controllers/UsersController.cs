@@ -73,6 +73,19 @@ public class UsersController : ApiControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Activa o desactiva que la familia pueda ver la ubicación del usuario autenticado.
+    /// Desactivado: nadie puede pedirla y su última ubicación deja de mostrarse.
+    /// </summary>
+    [HttpPatch("me/location-sharing")]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpdateLocationSharing([FromBody] UpdateLocationSharingRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _userService.SetLocationSharingAsync(CurrentUserId, request, cancellationToken);
+        return Ok(response);
+    }
+
     // =========================================================================
     // ENDPOINTS DE ADMINISTRADOR DE SISTEMA ([Authorize(Roles = "admin")])
     // =========================================================================

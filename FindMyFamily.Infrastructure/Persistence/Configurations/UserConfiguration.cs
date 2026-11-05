@@ -49,6 +49,14 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.UpdatedAt)
             .HasColumnName("updated_at");
 
+        // Sin HasDefaultValue a propósito: con un bool cuyo valor por defecto en la base es
+        // true, EF no distingue "false" de "sin asignar" y en un INSERT ignoraría el false.
+        // El valor inicial lo da la entidad (= true); la migración pone true a las filas
+        // que ya existían.
+        builder.Property(u => u.LocationSharingEnabled)
+            .HasColumnName("location_sharing_enabled")
+            .IsRequired();
+
         builder.Property(u => u.IsDeleted)
             .HasColumnName("is_deleted")
             .HasDefaultValue(false)

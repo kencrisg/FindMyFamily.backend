@@ -18,6 +18,13 @@ public class User
     /// </summary>
     public bool IsDeleted { get; set; }
 
+    /// <summary>
+    /// Si es false, el usuario ha dejado de compartir su ubicación: nadie puede pedirla, su
+    /// teléfono no se despierta, y su última ubicación guardada deja de mostrarse. Las
+    /// ubicaciones antiguas se conservan (ocultas) y vuelven a verse si lo reactiva.
+    /// </summary>
+    public bool LocationSharingEnabled { get; set; } = true;
+
     // Navigation properties
     public ICollection<Device> Devices { get; set; } = new List<Device>();
     public ICollection<FamilyMember> FamilyMembers { get; set; } = new List<FamilyMember>();

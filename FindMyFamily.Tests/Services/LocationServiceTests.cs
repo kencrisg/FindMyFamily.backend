@@ -1,3 +1,4 @@
+using FindMyFamily.Core.DTOs.Users;
 using FindMyFamily.Core.DTOs.Locations;
 using FindMyFamily.Core.Exceptions;
 using FindMyFamily.Tests.Infrastructure;
@@ -438,6 +439,97 @@ public class LocationServiceTests
     // -------------------------------------------------------------------------------
 
     /// <summary>Familia con una madre y un padre. Devuelve (familiaId, madreId, padreId).</summary>
+    // -------------------------------------------------------------------------------
+    // Dejar de compartir la ubicación
+    // -------------------------------------------------------------------------------
+
+    private static Task DejarDeCompartir(ServiceHarness h, Guid userId) =>
+        h.Users.SetLocationSharingAsync(userId, new UpdateLocationSharingRequestDto(false));
+
+    [Fact]
+    public async Task RequestLocation_SiDejoDeCompartir_AvisaYNoDespiertaSuTelefono()
+    {
+        await using var h = ServiceHarness.Create();
+        var (familia, madre, padre) = await EscenarioFamiliar(h);
+        await h.AddDeviceAsync(padre, fcmToken: "fcm-del-padre");
+        await DejarDeCompartir(h, padre);
+
+        var respuesta = await h.Locations.RequestLocationAsync(madre, new RequestLocationDto(padre, familia));
+
+        Assert.Equal(LocationRequestStatus.SharingDisabled, respuesta.Status);
+        Assert.Null(respuesta.RequestId);
+        // Ni se despierta su teléfono ni queda registrada una petición que autorice un reporte.
+        Assert.Empty(h.Push.SentMessages);
+        Assert.Empty(await h.Db.LocationRequests.IgnoreQueryFilters().ToListAsync());
+    }
+
+    [Fact]
+    public async Task RequestLocation_SiDejoDeCompartir_NoEnseñaSuUltimaUbicacion()
+    {
+        // Enseñar dónde estuvo la última vez iría contra su decisión de no compartirla.
+        await using var h = ServiceHarness.Create();
+        var (familia, madre, padre) = await EscenarioFamiliar(h);
+        await h.AddLocationAsync(padre, -0.18m, -78.46m, DateTime.UtcNow.AddMinutes(-5));
+        await DejarDeCompartir(h, padre);
+
+        var respuesta = await h.Locations.RequestLocationAsync(madre, new RequestLocationDto(padre, familia));
+        var ultima = await h.Locations.GetLatestLocationAsync(madre, familia, padre);
+
+        Assert.Null(respuesta.LastKnownLocation);
+        Assert.Null(ultima);
+    }
+
+    [Fact]
+    public async Task RequestLocation_SiDejoDeCompartir_NoCuentaParaElLimiteDePeticiones()
+    {
+        await using var h = ServiceHarness.Create();
+        var (familia, madre, padre) = await EscenarioFamiliar(h);
+        await DejarDeCompartir(h, padre);
+
+        // Muchas más que el límite: ninguna debe acabar en 429.
+        for (var i = 0; i < 15; i++)
+        {
+            var respuesta = await h.Locations.RequestLocationAsync(madre, new RequestLocationDto(padre, familia));
+            Assert.Equal(LocationRequestStatus.SharingDisabled, respuesta.Status);
+        }
+    }
+
+    [Fact]
+    public async Task ReportLocation_SiDejoDeCompartir_SeRechazaYNoSeGuarda()
+    {
+        // Una petición hecha justo antes de desactivarlo puede seguir pendiente y despertar
+        // el teléfono: su respuesta no debe llegar a nadie.
+        await using var h = ServiceHarness.Create();
+        var (familia, madre, padre) = await EscenarioFamiliar(h);
+        await h.AddPendingRequestAsync(madre, padre, familia);
+        await DejarDeCompartir(h, padre);
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(
+            () => h.Locations.ReportLocationAsync(padre, new ReportLocationDto(-0.18m, -78.46m)));
+
+        Assert.Equal("LOCATION_SHARING_DISABLED", ex.Code);
+        Assert.Empty(await h.Db.Locations.IgnoreQueryFilters().ToListAsync());
+        Assert.Empty(h.Notifier.Broadcasts);
+    }
+
+    [Fact]
+    public async Task AlReactivarlo_VuelveAFuncionarConSusUbicacionesAntiguas()
+    {
+        await using var h = ServiceHarness.Create();
+        var (familia, madre, padre) = await EscenarioFamiliar(h);
+        await h.AddDeviceAsync(padre, fcmToken: "fcm-del-padre");
+        await h.AddLocationAsync(padre, -0.18m, -78.46m, DateTime.UtcNow.AddMinutes(-5));
+        await DejarDeCompartir(h, padre);
+
+        var perfil = await h.Users.SetLocationSharingAsync(padre, new UpdateLocationSharingRequestDto(true));
+        var respuesta = await h.Locations.RequestLocationAsync(madre, new RequestLocationDto(padre, familia));
+
+        Assert.True(perfil.LocationSharingEnabled);
+        Assert.Equal(LocationRequestStatus.Requested, respuesta.Status);
+        Assert.NotNull(respuesta.LastKnownLocation);
+        Assert.Single(h.Push.SentMessages);
+    }
+
     private static async Task<(Guid familia, Guid madre, Guid padre)> EscenarioFamiliar(ServiceHarness h)
     {
         var familia = await h.AddFamilyAsync("Familia Castro");

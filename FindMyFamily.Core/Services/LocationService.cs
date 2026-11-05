@@ -30,6 +30,7 @@ public class LocationService : ILocationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPushNotificationService _pushNotificationService;
     private readonly ILocationRealtimeNotifier _realtimeNotifier;
+    private readonly IUserRepository _userRepository;
 
     public LocationService(
         ILocationRepository locationRepository,
@@ -38,8 +39,10 @@ public class LocationService : ILocationService
         IDeviceRepository deviceRepository,
         IUnitOfWork unitOfWork,
         IPushNotificationService pushNotificationService,
-        ILocationRealtimeNotifier realtimeNotifier)
+        ILocationRealtimeNotifier realtimeNotifier,
+        IUserRepository userRepository)
     {
+        _userRepository = userRepository;
         _locationRepository = locationRepository;
         _locationRequestRepository = locationRequestRepository;
         _familyRepository = familyRepository;
@@ -70,7 +73,21 @@ public class LocationService : ILocationService
             throw new ForbiddenException("El usuario objetivo no pertenece al grupo familiar especificado.", "FORBIDDEN");
         }
 
-        // 3. Limitar la frecuencia de peticiones sobre un mismo familiar
+        // 3. Si el familiar dejó de compartir su ubicación, se responde sin despertar su
+        //    teléfono y sin devolver su última ubicación guardada: decidió no compartirla, y
+        //    enseñar dónde estuvo la última vez iría contra esa decisión. No cuenta para el
+        //    límite de peticiones porque no molesta a nadie.
+        if (!await _userRepository.IsLocationSharingEnabledAsync(request.TargetUserId, cancellationToken))
+        {
+            return new LocationRequestResponseDto(
+                RequestId: null,
+                TargetUserId: request.TargetUserId,
+                Status: LocationRequestStatus.SharingDisabled,
+                Message: "Este familiar ha desactivado la opción de compartir su ubicación.",
+                LastKnownLocation: null);
+        }
+
+        // 4. Limitar la frecuencia de peticiones sobre un mismo familiar
         var since = DateTime.UtcNow.Subtract(RequestRateWindow);
         var recentCount = await _locationRequestRepository.CountRecentByRequesterAsync(
             requesterId, request.TargetUserId, since, cancellationToken);
@@ -82,11 +99,11 @@ public class LocationService : ILocationService
                 "LOCATION_REQUEST_RATE_LIMITED");
         }
 
-        // 4. Última ubicación conocida. Se resuelve siempre, porque forma parte de la
+        // 5. Última ubicación conocida. Se resuelve siempre, porque forma parte de la
         //    respuesta tanto si el dispositivo responde como si está inalcanzable.
         var lastKnown = await GetLastKnownAsync(request.TargetUserId, cancellationToken);
 
-        // 5. Obtener el dispositivo activo con FCM token del usuario destino.
+        // 6. Obtener el dispositivo activo con FCM token del usuario destino.
         //    Si no hay ninguno, el familiar es inalcanzable: NO es un error de la petición,
         //    así que se responde 200 con estado UNAVAILABLE y la última posición conocida.
         //    Antes esto lanzaba un 404 y la app no tenía con qué construir el mensaje de
@@ -98,7 +115,7 @@ public class LocationService : ILocationService
                 "El dispositivo de tu familiar no está disponible en este momento.");
         }
 
-        // 6. Registrar la petición ANTES de enviar el push: deja rastro de quién pidió qué
+        // 7. Registrar la petición ANTES de enviar el push: deja rastro de quién pidió qué
         //    y es lo que autoriza y acota el posterior reporte de coordenadas.
         var now = DateTime.UtcNow;
         var locationRequest = new LocationRequest
@@ -114,7 +131,7 @@ public class LocationService : ILocationService
         await _locationRequestRepository.AddAsync(locationRequest, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // 7. Emitir el Silent Push a través de Firebase Messaging
+        // 8. Emitir el Silent Push a través de Firebase Messaging
         var sent = await _pushNotificationService.SendSilentLocationRequestAsync(
             targetDevice.FcmToken,
             locationRequest.Id,
@@ -174,6 +191,14 @@ public class LocationService : ILocationService
         if (request.Latitude is null || request.Longitude is null)
         {
             throw new BadRequestException("La latitud y la longitud son obligatorias.", "INVALID_COORDINATES");
+        }
+
+        // Una petición hecha antes de que el usuario desactivara la opción podría seguir
+        // pendiente y despertar su teléfono: su respuesta no se guarda ni se difunde.
+        if (!await _userRepository.IsLocationSharingEnabledAsync(reportingUserId, cancellationToken))
+        {
+            throw new ForbiddenException(
+                "Tienes desactivada la opción de compartir tu ubicación.", "LOCATION_SHARING_DISABLED");
         }
 
         var latitude = request.Latitude.Value;
@@ -238,6 +263,12 @@ public class LocationService : ILocationService
     public async Task<LocationDto?> GetLatestLocationAsync(Guid requestingUserId, Guid familyId, Guid targetUserId, CancellationToken cancellationToken = default)
     {
         await ValidateFamilyAccessAsync(requestingUserId, familyId, targetUserId, cancellationToken);
+
+        // Quien dejó de compartir su ubicación tampoco enseña la última que se guardó.
+        if (!await _userRepository.IsLocationSharingEnabledAsync(targetUserId, cancellationToken))
+        {
+            return null;
+        }
 
         return await GetLastKnownAsync(targetUserId, cancellationToken);
     }

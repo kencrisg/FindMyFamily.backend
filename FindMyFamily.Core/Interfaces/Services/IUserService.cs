@@ -8,6 +8,7 @@ public interface IUserService
     Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<UserProfileDto> UpdatePhoneNumberAsync(Guid userId, UpdatePhoneRequestDto request, CancellationToken cancellationToken = default);
     Task UpdatePasswordAsync(Guid userId, UpdatePasswordRequestDto request, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> SetLocationSharingAsync(Guid userId, UpdateLocationSharingRequestDto request, CancellationToken cancellationToken = default);
     Task<UserProfileDto> UpdateMyProfileAsync(Guid userId, UpdateMyProfileRequestDto request, CancellationToken cancellationToken = default);
 
     // Operaciones de Administrador de Sistema

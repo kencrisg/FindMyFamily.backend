@@ -237,6 +237,10 @@ namespace FindMyFamily.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("last_name");
 
+                    b.Property<bool>("LocationSharingEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("location_sharing_enabled");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text")

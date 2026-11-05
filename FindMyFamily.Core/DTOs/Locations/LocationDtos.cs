@@ -33,6 +33,12 @@ public static class LocationRequestStatus
     /// la última ubicación conocida, si existe.
     /// </summary>
     public const string Unavailable = "UNAVAILABLE";
+
+    /// <summary>
+    /// El familiar ha desactivado la opción de compartir su ubicación. No se despierta su
+    /// teléfono ni se devuelve su última ubicación: decidió no compartirla.
+    /// </summary>
+    public const string SharingDisabled = "SHARING_DISABLED";
 }
 
 /// <summary>
