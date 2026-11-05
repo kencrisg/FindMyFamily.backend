@@ -94,7 +94,7 @@ public class UserServiceTests
         var familia = await h.AddFamilyAsync();
 
         var perfil = await h.Users.AdminCreateUserAsync(admin.Id, new AdminCreateUserRequestDto(
-            "Maria", "Castro", "0999000002", "Maria2026", familia.Id, "admin"));
+            "Maria", "Castro", "0999000002", "Test.123", familia.Id, "admin"));
 
         Assert.Equal("user", perfil.SystemRole);
         var pertenencia = Assert.Single(perfil.Families);

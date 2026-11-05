@@ -142,7 +142,7 @@ public class FamilyServiceTests
         var (_, familia, adminFamiliar) = await EscenarioConAdminFamiliar(h);
 
         var detalle = await h.Families.CreateMemberUserAsync(adminFamiliar, familia,
-            new CreateFamilyMemberUserRequestDto("Luis", "Castro", "0999000003", "Luis2026"));
+            new CreateFamilyMemberUserRequestDto("Luis", "Castro", "0999000003", "Test.123"));
 
         Assert.Equal(2, detalle.Members.Count);
         var nuevo = Assert.Single(detalle.Members, m => m.PhoneNumber == "0999000003");
