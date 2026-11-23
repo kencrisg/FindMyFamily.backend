@@ -7,6 +7,7 @@ using FindMyFamily.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace FindMyFamily.Infrastructure;
 
@@ -15,7 +16,13 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // 1. Base de datos (PostgreSQL)
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        // Neon (y la mayoría de proveedores gestionados) entrega la cadena como URL
+        // postgresql://usuario:clave@host/db?sslmode=require. Npgsql espera el formato
+        // clave=valor, así que se normaliza aquí: pegar la URL tal cual es el error más
+        // habitual al desplegar y el mensaje que devuelve Npgsql no lo explica.
+        var connectionString = NormalizeConnectionString(
+            configuration.GetConnectionString("DefaultConnection")
+            ?? configuration["DATABASE_URL"]);
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -31,8 +38,8 @@ public static class DependencyInjection
                 || string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             {
                 throw new InvalidOperationException(
-                    "No hay configuración de base de datos. Define ConnectionStrings__DefaultConnection " +
-                    "o bien DB_HOST, DB_NAME, DB_USER y DB_PASSWORD en el entorno.");
+                    "No hay configuración de base de datos. Define ConnectionStrings__DefaultConnection, " +
+                    "DATABASE_URL o bien DB_HOST, DB_NAME, DB_USER y DB_PASSWORD en el entorno.");
             }
 
             connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password}";
@@ -60,5 +67,41 @@ public static class DependencyInjection
         services.AddSingleton<IPushNotificationService, FirebasePushNotificationService>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Convierte una cadena de conexión en formato URL (postgresql://…) al formato
+    /// clave=valor que entiende Npgsql. Si ya viene en ese formato, la devuelve intacta.
+    /// </summary>
+    private static string? NormalizeConnectionString(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var trimmed = value.Trim();
+
+        if (!trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+            && !trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        var uri = new Uri(trimmed);
+        var userInfo = uri.UserInfo.Split(':', 2);
+
+        return new NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            // Uri no conoce el esquema postgresql, así que sin puerto explícito devuelve -1.
+            Port = uri.IsDefaultPort || uri.Port <= 0 ? 5432 : uri.Port,
+            Database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')),
+            Username = Uri.UnescapeDataString(userInfo[0]),
+            Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
+            // Neon exige TLS. Require cifra la conexión sin fijar el certificado: suficiente
+            // aquí y evita tener que distribuir la CA del proveedor en la imagen.
+            SslMode = SslMode.Require
+        }.ConnectionString;
     }
 }

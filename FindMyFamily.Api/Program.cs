@@ -244,6 +244,17 @@ app.MapGet("/", () => Results.Ok(new
 .WithName("Root")
 .WithTags("Health");
 
+// Endpoint pensado para el health check del proveedor y para el ping de keep-alive.
+// No consulta la base de datos a propósito: despertar a Neon en cada ping gastaría cuota
+// de compute y haría más lento el chequeo. Que responda 200 solo confirma que la API vive.
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "healthy",
+    timestampUtc = DateTime.UtcNow
+}))
+.WithName("Health")
+.WithTags("Health");
+
 app.Run();
 
 // Particiona por usuario autenticado cuando lo hay, y por IP en caso contrario,
