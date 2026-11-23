@@ -30,6 +30,9 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        // El JWT va firmado pero NO cifrado: cualquiera que lo intercepte lee su contenido,
+        // y además viaja por query string en las conexiones de SignalR (donde acaba en logs).
+        // Por eso solo lleva identificadores, nunca datos personales como teléfono o nombre.
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
@@ -37,9 +40,6 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             new(ClaimTypes.Role, user.Role),
             new("role", user.Role),
             new("device_id", device.Id.ToString()),
-            new("phone_number", user.PhoneNumber),
-            new("first_name", user.FirstName),
-            new("last_name", user.LastName),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

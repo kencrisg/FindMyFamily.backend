@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FindMyFamily.Core.DTOs.Families;
 using FindMyFamily.Core.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -7,9 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace FindMyFamily.Api.Controllers;
 
 [Authorize]
-[ApiController]
 [Route("api/[controller]")]
-public class FamiliesController : ControllerBase
+public class FamiliesController : ApiControllerBase
 {
     private readonly IFamilyService _familyService;
 
@@ -17,21 +15,6 @@ public class FamiliesController : ControllerBase
     {
         _familyService = familyService;
     }
-
-    private Guid CurrentUserId
-    {
-        get
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
-            if (claim == null || !Guid.TryParse(claim.Value, out var userId))
-            {
-                throw new UnauthorizedAccessException("Usuario no autenticado.");
-            }
-            return userId;
-        }
-    }
-
-    private bool IsSuperAdmin => User.IsInRole("admin");
 
     /// <summary>
     /// Crea un nuevo grupo familiar en el sistema (Exclusivo para Super Admin).
@@ -154,6 +137,38 @@ public class FamiliesController : ControllerBase
     public async Task<IActionResult> RemoveMember(Guid id, Guid userId, CancellationToken cancellationToken)
     {
         await _familyService.RemoveMemberAsync(CurrentUserId, id, userId, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Edita los datos personales de un miembro del grupo familiar (Admin de Familia o Super Admin).
+    /// </summary>
+    [HttpPatch("{id:guid}/members/{userId:guid}")]
+    [ProducesResponseType(typeof(FamilyDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateMemberUser(Guid id, Guid userId, [FromBody] UpdateFamilyMemberUserRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _familyService.UpdateMemberUserAsync(CurrentUserId, id, userId, request, cancellationToken);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Restablece la contraseña de un miembro del grupo familiar (Admin de Familia o Super Admin).
+    /// Cierra todas las sesiones abiertas de ese miembro.
+    /// </summary>
+    [HttpPatch("{id:guid}/members/{userId:guid}/password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetMemberPassword(Guid id, Guid userId, [FromBody] ResetMemberPasswordRequestDto request, CancellationToken cancellationToken)
+    {
+        await _familyService.ResetMemberPasswordAsync(CurrentUserId, id, userId, request, cancellationToken);
         return NoContent();
     }
 

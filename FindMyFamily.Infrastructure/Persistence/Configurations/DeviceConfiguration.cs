@@ -18,11 +18,16 @@ public class DeviceConfiguration : IEntityTypeConfiguration<Device>
             .HasColumnName("user_id")
             .IsRequired();
 
+        builder.Property(d => d.InstallationId)
+            .HasColumnName("installation_id")
+            .HasMaxLength(128);
+
         builder.Property(d => d.FcmToken)
             .HasColumnName("fcm_token");
 
-        builder.Property(d => d.RefreshToken)
-            .HasColumnName("refresh_token");
+        builder.Property(d => d.RefreshTokenHash)
+            .HasColumnName("refresh_token_hash")
+            .HasMaxLength(64);
 
         builder.Property(d => d.RefreshTokenExpiry)
             .HasColumnName("refresh_token_expiry");
@@ -39,10 +44,23 @@ public class DeviceConfiguration : IEntityTypeConfiguration<Device>
             .HasDefaultValue(true)
             .IsRequired();
 
+        // El refresh se resuelve buscando por hash: sin índice era un recorrido completo de tabla.
+        builder.HasIndex(d => d.RefreshTokenHash);
+
+        // Un InstallationId identifica un dispositivo por usuario de forma única.
+        builder.HasIndex(d => new { d.UserId, d.InstallationId })
+            .IsUnique()
+            .HasFilter("installation_id IS NOT NULL");
+
         // Relación con User
         builder.HasOne(d => d.User)
             .WithMany(u => u.Devices)
             .HasForeignKey(d => d.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Filtro equivalente al de User: sin él, al ocultar al usuario borrado esta fila
+        // quedaba huérfana a medias (visible sola, desaparecida en cuanto se hacía Include
+        // del usuario, porque la relación obligatoria se traduce a INNER JOIN).
+        builder.HasQueryFilter(d => !d.User.IsDeleted);
     }
 }

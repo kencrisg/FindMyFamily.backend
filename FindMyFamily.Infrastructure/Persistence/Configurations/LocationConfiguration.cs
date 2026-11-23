@@ -42,5 +42,10 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
             .WithMany(u => u.Locations)
             .HasForeignKey(l => l.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Filtro equivalente al de User: sin él, al ocultar al usuario borrado esta fila
+        // quedaba huérfana a medias (visible sola, desaparecida en cuanto se hacía Include
+        // del usuario, porque la relación obligatoria se traduce a INNER JOIN).
+        builder.HasQueryFilter(l => !l.User.IsDeleted);
     }
 }

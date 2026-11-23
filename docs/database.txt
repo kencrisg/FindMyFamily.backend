@@ -1,65 +1,113 @@
+// ========================================================
+// FindMyFamily — Esquema de base de datos (dbdiagram.io)
+// Generado a partir de la migración InitialCreate (modelo EF Core real).
+// Pegar en https://dbdiagram.io para visualizarlo.
+// ========================================================
+
 Project FindMyFamily {
   database_type: 'PostgreSQL'
-  Note: 'Esquema core para localización familiar bajo demanda'
+  Note: 'Localización familiar bajo demanda: una ubicación se captura solo cuando un familiar la pide.'
 }
 
 Table users {
-  id uuid [primary key]
-  first_name varchar(50)
-  last_name varchar(50)
-  phone_number varchar [unique, note: 'Mandatorio para inicio de sesion']
-  password_hash varchar
-  role varchar (20)
-  created_at timestamp
-  updated_at timestamp
-  
-}
+  id uuid [pk]
+  first_name varchar(50) [not null]
+  last_name varchar(50) [not null]
+  phone_number varchar(20) [not null, unique, note: 'Credencial de inicio de sesión. Se guarda normalizado (sin espacios ni guiones)']
+  password_hash text [not null, note: 'Hash BCrypt. Nunca la contraseña en claro']
+  role varchar(20) [not null, default: 'user', note: 'Rol de PLATAFORMA: admin = Administrador de Sistema (backoffice), user = usuario normal']
+  created_at timestamptz [not null]
+  updated_at timestamptz [note: 'También marca cuándo se borró la cuenta: una cuenta borrada ya no se edita']
+  is_deleted boolean [not null, default: false, note: 'Borrado lógico. true = cuenta eliminada: no inicia sesión ni aparece en ninguna consulta (filtro global)']
 
-Table devices {
-  id uuid [primary key]
-  user_id uuid [not null] 
-  fcm_token varchar [note: 'Token de Firebase para despertar el celular (Silent Push)']
-  refresh_token varchar [note: 'Para mantener la sesión activa infinitamente']
-  refresh_token_expiry timestamp
-  device_model varchar [note: 'Ej: Samsung Galaxy S23']
-  last_active_at timestamp
-  is_active boolean [default: true]
+  indexes {
+    phone_number [unique, name: 'IX_users_phone_number']
+  }
+
+  Note: 'El índice único del teléfono incluye las cuentas borradas: un número eliminado no puede reutilizarse sin restaurar la cuenta.'
 }
 
 Table families {
-  id uuid [primary key]
-  name varchar [note: 'Ej: Familia Castro']
-  created_at timestamp
+  id uuid [pk]
+  name varchar(100) [not null, note: 'Ej: Familia Castro']
+  created_at timestamptz [not null]
+
+  Note: 'Solo el Administrador de Sistema crea familias.'
 }
 
 Table family_members {
   family_id uuid [not null]
   user_id uuid [not null]
-  role varchar [note: 'admin, member']
-  joined_at timestamp
-  
+  role varchar(20) [not null, note: 'Rol DENTRO de la familia: admin (gestiona a los miembros) o member']
+  joined_at timestamptz [not null]
+
   indexes {
-    (family_id, user_id) [unique]
+    (family_id, user_id) [pk]
+    user_id [name: 'IX_family_members_user_id']
+  }
+
+  Note: 'Un usuario puede pertenecer a varias familias. Al quitarlo de la última se borra lógicamente su cuenta.'
+}
+
+Table devices {
+  id uuid [pk]
+  user_id uuid [not null]
+  installation_id varchar(128) [note: 'Identificador único de la instalación de la app. Distingue dos teléfonos del mismo modelo']
+  fcm_token text [note: 'Token de Firebase para despertar el teléfono (Silent Push). null = inalcanzable']
+  refresh_token_hash varchar(64) [note: 'SHA-256 del refresh token. Nunca el token en claro']
+  refresh_token_expiry timestamptz
+  device_model varchar(100) [note: 'Solo informativo. Ej: Samsung Galaxy S23']
+  last_active_at timestamptz
+  is_active boolean [not null, default: true, note: 'false al cerrar sesión o borrar la cuenta']
+
+  indexes {
+    (user_id, installation_id) [unique, name: 'IX_devices_user_id_installation_id', note: 'Índice parcial: WHERE installation_id IS NOT NULL']
+    refresh_token_hash [name: 'IX_devices_refresh_token_hash']
   }
 }
 
 Table locations {
-  id uuid [primary key]
+  id uuid [pk]
   user_id uuid [not null]
-  latitude decimal(10, 8)
-  longitude decimal(11, 8)
-  captured_at timestamp [note: 'Hora exacta en que el GPS tomó el dato']
-  
+  latitude numeric(10,8) [not null]
+  longitude numeric(11,8) [not null]
+  captured_at timestamptz [not null, note: 'Hora exacta en que el GPS tomó el dato (no la de llegada al servidor)']
+
   indexes {
-    user_id
-    captured_at
+    user_id [name: 'IX_locations_user_id']
+    captured_at [name: 'IX_locations_captured_at']
+    (user_id, captured_at) [name: 'IX_locations_user_id_captured_at', note: 'Resuelve "última ubicación válida de un usuario"']
   }
+
+  Note: 'Solo se guarda una ubicación cuando responde a una location_request vigente: no hay rastreo continuo.'
+}
+
+Table location_requests {
+  id uuid [pk]
+  requester_id uuid [not null, note: 'Quién pide la ubicación']
+  target_user_id uuid [not null, note: 'De quién se pide']
+  family_id uuid [not null, note: 'Familia en la que se hizo la petición: ambos deben pertenecer a ella']
+  created_at timestamptz [not null]
+  expires_at timestamptz [not null, note: 'Pasada esta hora el teléfono ya no puede responder a la petición']
+  fulfilled_at timestamptz [note: 'null = pendiente']
+  location_id uuid [note: 'Ubicación con la que se respondió. Referencia informativa, sin clave foránea']
+
+  indexes {
+    family_id [name: 'IX_location_requests_family_id']
+    (requester_id, target_user_id, created_at) [name: 'IX_location_requests_requester_id_target_user_id_created_at', note: 'Límite de peticiones por pareja']
+    (target_user_id, fulfilled_at, expires_at) [name: 'IX_location_requests_target_user_id_fulfilled_at_expires_at', note: 'Peticiones vigentes dirigidas a un usuario']
+  }
+
+  Note: 'Autoriza el reporte de ubicación: un teléfono solo puede enviar su posición si hay una petición pendiente para él.'
 }
 
 // --------------------------------------------------------
-// RELACIONES 
+// RELACIONES
 // --------------------------------------------------------
-Ref: devices.user_id > users.id
-Ref: family_members.family_id > families.id
-Ref: family_members.user_id > users.id
-Ref: locations.user_id > users.id
+Ref: devices.user_id > users.id [delete: cascade]
+Ref: family_members.family_id > families.id [delete: cascade]
+Ref: family_members.user_id > users.id [delete: cascade]
+Ref: locations.user_id > users.id [delete: cascade]
+Ref: location_requests.requester_id > users.id [delete: cascade]
+Ref: location_requests.target_user_id > users.id [delete: restrict]
+Ref: location_requests.family_id > families.id [delete: cascade]

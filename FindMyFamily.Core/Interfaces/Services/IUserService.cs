@@ -8,11 +8,16 @@ public interface IUserService
     Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<UserProfileDto> UpdatePhoneNumberAsync(Guid userId, UpdatePhoneRequestDto request, CancellationToken cancellationToken = default);
     Task UpdatePasswordAsync(Guid userId, UpdatePasswordRequestDto request, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> SetLocationSharingAsync(Guid userId, UpdateLocationSharingRequestDto request, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> UpdateMyProfileAsync(Guid userId, UpdateMyProfileRequestDto request, CancellationToken cancellationToken = default);
 
     // Operaciones de Administrador de Sistema
     Task<UserProfileDto> AdminCreateUserAsync(Guid adminUserId, AdminCreateUserRequestDto request, CancellationToken cancellationToken = default);
     Task<UserProfileDto> AdminGetUserByIdAsync(Guid adminUserId, Guid targetUserId, CancellationToken cancellationToken = default);
     Task<UserProfileDto> AdminUpdateUserAsync(Guid adminUserId, Guid targetUserId, AdminUpdateUserRequestDto request, CancellationToken cancellationToken = default);
+    Task AdminResetPasswordAsync(Guid adminUserId, Guid targetUserId, AdminResetPasswordRequestDto request, CancellationToken cancellationToken = default);
     Task AdminDeleteUserAsync(Guid adminUserId, Guid targetUserId, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> AdminRestoreUserAsync(Guid adminUserId, Guid targetUserId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<UserProfileDto>> AdminGetDeletedUsersAsync(Guid adminUserId, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<UserProfileDto>> AdminGetAllUsersAsync(Guid adminUserId, int page = 1, int pageSize = 50, CancellationToken cancellationToken = default);
 }

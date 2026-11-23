@@ -15,7 +15,8 @@ public record UserProfileDto(
     string SystemRole,
     IReadOnlyList<UserFamilyMembershipDto> Families,
     DateTime CreatedAt,
-    DateTime? UpdatedAt
+    DateTime? UpdatedAt,
+    bool LocationSharingEnabled
 );
 
 public record UpdatePhoneRequestDto(
@@ -43,4 +44,20 @@ public record AdminUpdateUserRequestDto(
     string? PhoneNumber,
     Guid? FamilyId,
     string? FamilyRole
+);
+
+/// <summary>Datos personales que el propio usuario puede cambiar sin intervención de un admin.</summary>
+public record UpdateMyProfileRequestDto(
+    string FirstName,
+    string LastName
+);
+
+/// <summary>Restablecimiento de contraseña por el Administrador de Sistema.</summary>
+public record AdminResetPasswordRequestDto(
+    string NewPassword
+);
+
+/// <summary>Activa o desactiva que la familia pueda ver la ubicación del usuario.</summary>
+public record UpdateLocationSharingRequestDto(
+    bool Enabled
 );

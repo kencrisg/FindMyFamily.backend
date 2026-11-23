@@ -40,5 +40,10 @@ public class FamilyMemberConfiguration : IEntityTypeConfiguration<FamilyMember>
             .WithMany(u => u.FamilyMembers)
             .HasForeignKey(fm => fm.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Filtro equivalente al de User: sin él, al ocultar al usuario borrado esta fila
+        // quedaba huérfana a medias (visible sola, desaparecida en cuanto se hacía Include
+        // del usuario, porque la relación obligatoria se traduce a INNER JOIN).
+        builder.HasQueryFilter(fm => !fm.User.IsDeleted);
     }
 }

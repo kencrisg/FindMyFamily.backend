@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using FindMyFamily.Core.DTOs.Users;
 using FindMyFamily.Core.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -7,28 +6,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace FindMyFamily.Api.Controllers;
 
 [Authorize]
-[ApiController]
 [Route("api/[controller]")]
-public class UsersController : ControllerBase
+public class UsersController : ApiControllerBase
 {
     private readonly IUserService _userService;
 
     public UsersController(IUserService userService)
     {
         _userService = userService;
-    }
-
-    private Guid CurrentUserId
-    {
-        get
-        {
-            var claim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
-            if (claim == null || !Guid.TryParse(claim.Value, out var userId))
-            {
-                throw new UnauthorizedAccessException("Usuario no autenticado.");
-            }
-            return userId;
-        }
     }
 
     // =========================================================================
@@ -73,6 +58,32 @@ public class UsersController : ControllerBase
     {
         await _userService.UpdatePasswordAsync(CurrentUserId, request, cancellationToken);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Actualiza el nombre y el apellido del usuario autenticado.
+    /// </summary>
+    [HttpPatch("me")]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateMyProfileRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _userService.UpdateMyProfileAsync(CurrentUserId, request, cancellationToken);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Activa o desactiva que la familia pueda ver la ubicación del usuario autenticado.
+    /// Desactivado: nadie puede pedirla y su última ubicación deja de mostrarse.
+    /// </summary>
+    [HttpPatch("me/location-sharing")]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpdateLocationSharing([FromBody] UpdateLocationSharingRequestDto request, CancellationToken cancellationToken)
+    {
+        var response = await _userService.SetLocationSharingAsync(CurrentUserId, request, cancellationToken);
+        return Ok(response);
     }
 
     // =========================================================================
@@ -139,6 +150,53 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> AdminUpdateUser(Guid id, [FromBody] AdminUpdateUserRequestDto request, CancellationToken cancellationToken)
     {
         var response = await _userService.AdminUpdateUserAsync(CurrentUserId, id, request, cancellationToken);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Restablece la contraseña de un usuario y cierra todas sus sesiones (Solo Super Administrador).
+    /// </summary>
+    [Authorize(Roles = "admin")]
+    [HttpPatch("{id:guid}/password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AdminResetPassword(Guid id, [FromBody] AdminResetPasswordRequestDto request, CancellationToken cancellationToken)
+    {
+        await _userService.AdminResetPasswordAsync(CurrentUserId, id, request, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Lista las cuentas eliminadas lógicamente (Solo Super Administrador).
+    /// </summary>
+    [Authorize(Roles = "admin")]
+    [HttpGet("deleted")]
+    [ProducesResponseType(typeof(IReadOnlyList<UserProfileDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetDeletedUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken cancellationToken = default)
+    {
+        var users = await _userService.AdminGetDeletedUsersAsync(CurrentUserId, page, pageSize, cancellationToken);
+        return Ok(users);
+    }
+
+    /// <summary>
+    /// Restaura una cuenta eliminada lógicamente (Solo Super Administrador).
+    /// No la devuelve a ninguna familia: hay que reasignarla explícitamente.
+    /// </summary>
+    [Authorize(Roles = "admin")]
+    [HttpPost("{id:guid}/restore")]
+    [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RestoreUser(Guid id, CancellationToken cancellationToken)
+    {
+        var response = await _userService.AdminRestoreUserAsync(CurrentUserId, id, cancellationToken);
         return Ok(response);
     }
 

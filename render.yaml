@@ -1,0 +1,57 @@
+# Blueprint de Render para FindMyFamily API.
+#
+# Render lee este archivo al crear el servicio con "New → Blueprint" y deja casi todo
+# configurado. Las variables marcadas con "sync: false" NO se guardan aquí: Render te las
+# pide en el formulario y las guarda cifradas en su panel. Nunca pongas secretos en este
+# archivo ni en el repositorio.
+#
+# Plan Free (sin tarjeta): 512 MB RAM, 0.1 CPU, 750 horas/mes y se duerme a los 15 min
+# sin tráfico. Alcanza para UN solo servicio encendido: no crees un segundo web service
+# free en el mismo workspace o se suspenden los dos al agotar las horas.
+
+services:
+  - type: web
+    name: findmyfamily-api
+    runtime: docker
+    plan: free
+    region: ohio          # cámbiala por la más cercana si prefieres (oregon, virginia, frankfurt, singapore)
+    branch: dev
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+
+      # Cadena de Neon. Acepta tanto la URL que copia el panel
+      # (postgresql://usuario:clave@host/db?sslmode=require) como el formato
+      # clave=valor de Npgsql. El backend la normaliza al arrancar.
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+
+      # Contenido de firebase-admin.json en base64 (o JSON en claro). Obligatorio en
+      # Production: sin esto la API se niega a arrancar, a propósito.
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+
+      # Render genera un valor aleatorio suficientemente largo. La API exige >= 32
+      # caracteres y rechaza el valor de ejemplo.
+      - key: JWT_SECRET
+        generateValue: true
+
+      - key: JWT_ISSUER
+        value: FindMyFamily
+      - key: JWT_AUDIENCE
+        value: FindMyFamily.Mobile
+      - key: JWT_EXPIRY_MINUTES
+        value: "60"
+
+      # Aplica las migraciones de EF Core al arrancar. En local conviene dejarlo apagado
+      # y ejecutar `dotnet ef database update` a mano.
+      - key: RUN_MIGRATIONS_ON_STARTUP
+        value: "true"
+
+      # El SUPERADMIN_* se agrega después en el panel (Environment), no aquí: solo hace
+      # falta la primera vez, para crear el administrador inicial.

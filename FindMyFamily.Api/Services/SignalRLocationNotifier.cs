@@ -7,6 +7,12 @@ namespace FindMyFamily.Api.Services;
 
 public class SignalRLocationNotifier : ILocationRealtimeNotifier
 {
+    /// <summary>
+    /// Nombre del evento que escucha el cliente móvil. Debe coincidir exactamente con el
+    /// manejador registrado en `signalr-location.service.ts`.
+    /// </summary>
+    private const string LocationUpdatedEvent = "LocationUpdated";
+
     private readonly IHubContext<LocationHub> _hubContext;
     private readonly ILogger<SignalRLocationNotifier> _logger;
 
@@ -16,20 +22,23 @@ public class SignalRLocationNotifier : ILocationRealtimeNotifier
         _logger = logger;
     }
 
-    public async Task SendLocationUpdateAsync(Guid userId, IReadOnlyList<Guid> familyIds, LocationDto location, CancellationToken cancellationToken = default)
+    public async Task SendLocationUpdateAsync(
+        IReadOnlyList<Guid> recipientUserIds,
+        LocationDto location,
+        CancellationToken cancellationToken = default)
     {
-        // 1. Enviar evento al canal privado del usuario
-        await _hubContext.Clients.Group($"user_{userId}")
-            .SendAsync("LocationUpdated", location, cancellationToken);
-
-        // 2. Enviar evento a todos los grupos familiares
-        foreach (var familyId in familyIds)
+        if (recipientUserIds.Count == 0)
         {
-            await _hubContext.Clients.Group($"family_{familyId}")
-                .SendAsync("LocationUpdated", location, cancellationToken);
+            return;
         }
 
-        _logger.LogInformation("Ubicación de usuario {UserId} retransmitida en tiempo real a {Count} grupos familiares",
-            userId, familyIds.Count);
+        var groups = recipientUserIds.Select(id => $"user_{id}").ToList();
+
+        await _hubContext.Clients.Groups(groups)
+            .SendAsync(LocationUpdatedEvent, location, cancellationToken);
+
+        _logger.LogInformation(
+            "Ubicación de usuario {UserId} retransmitida en tiempo real a {Count} destinatarios autorizados",
+            location.UserId, recipientUserIds.Count);
     }
 }

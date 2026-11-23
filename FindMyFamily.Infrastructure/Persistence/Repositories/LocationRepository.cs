@@ -16,22 +16,24 @@ public class LocationRepository : ILocationRepository
     public async Task<Location?> GetLatestByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         return await _context.Locations
+            .AsNoTracking()
             .Where(l => l.UserId == userId)
             .OrderByDescending(l => l.CapturedAt)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Location>> GetHistoryByUserIdAsync(Guid userId, int limit = 50, CancellationToken cancellationToken = default)
-    {
-        return await _context.Locations
-            .Where(l => l.UserId == userId)
-            .OrderByDescending(l => l.CapturedAt)
-            .Take(limit)
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task AddAsync(Location location, CancellationToken cancellationToken = default)
     {
         await _context.Locations.AddAsync(location, cancellationToken);
+    }
+
+    public async Task<int> DeleteAllByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Locations
+            // Sin el filtro global: es un borrado explícito por usuario y debe alcanzar
+            // todas sus filas, esté la cuenta activa o borrada lógicamente.
+            .IgnoreQueryFilters()
+            .Where(l => l.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 }

@@ -49,6 +49,26 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.UpdatedAt)
             .HasColumnName("updated_at");
 
+        // Sin HasDefaultValue a propósito: con un bool cuyo valor por defecto en la base es
+        // true, EF no distingue "false" de "sin asignar" y en un INSERT ignoraría el false.
+        // El valor inicial lo da la entidad (= true); la migración pone true a las filas
+        // que ya existían.
+        builder.Property(u => u.LocationSharingEnabled)
+            .HasColumnName("location_sharing_enabled")
+            .IsRequired();
+
+        builder.Property(u => u.IsDeleted)
+            .HasColumnName("is_deleted")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+
+        // Filtro global: toda consulta sobre Users excluye las cuentas borradas sin que
+        // cada repositorio tenga que recordarlo. Para operar sobre ellas (restaurar, o
+        // detectar que un teléfono pertenece a una cuenta borrada) hay que pedirlo
+        // explícitamente con IgnoreQueryFilters().
+        builder.HasQueryFilter(u => !u.IsDeleted);
+
         // Relaciones
         builder.HasMany(u => u.Devices)
             .WithOne(d => d.User)

@@ -11,6 +11,20 @@ public class User
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
+    /// <summary>
+    /// Borrado lógico. Mientras sea true la cuenta se considera eliminada: no puede iniciar
+    /// sesión ni aparece en ninguna consulta. Se conserva la fila para no perder el histórico
+    /// de ubicaciones ni romper las referencias de auditoría.
+    /// </summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>
+    /// Si es false, el usuario ha dejado de compartir su ubicación: nadie puede pedirla, su
+    /// teléfono no se despierta, y su última ubicación guardada deja de mostrarse. Las
+    /// ubicaciones antiguas se conservan (ocultas) y vuelven a verse si lo reactiva.
+    /// </summary>
+    public bool LocationSharingEnabled { get; set; } = true;
+
     // Navigation properties
     public ICollection<Device> Devices { get; set; } = new List<Device>();
     public ICollection<FamilyMember> FamilyMembers { get; set; } = new List<FamilyMember>();
