@@ -28,6 +28,7 @@ public sealed class ServiceHarness : IAsyncDisposable
     public FakeRefreshTokenHasher RefreshTokenHasher { get; } = new();
     public FakePushNotificationService Push { get; } = new();
     public FakeLocationRealtimeNotifier Notifier { get; } = new();
+    public RecordingLogger<AuthService> AuthLog { get; } = new();
 
     public IAuthService Auth { get; }
     public IUserService Users { get; }
@@ -56,7 +57,7 @@ public sealed class ServiceHarness : IAsyncDisposable
         var locationRequestRepository = new LocationRequestRepository(Db);
 
         Auth = new AuthService(userRepository, deviceRepository, unitOfWork,
-            PasswordHasher, JwtTokenGenerator, RefreshTokenHasher);
+            PasswordHasher, JwtTokenGenerator, RefreshTokenHasher, AuthLog);
 
         Users = new UserService(userRepository, familyRepository, deviceRepository,
             unitOfWork, PasswordHasher);

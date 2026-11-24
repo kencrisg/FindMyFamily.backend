@@ -56,6 +56,33 @@ public class DeviceServiceTests
     }
 
     [Fact]
+    public async Task UpdateFcmToken_ConUnDispositivoEliminado_Lanza401YNoTocaAlDispositivoActual()
+    {
+        // Tras cerrar sesión o entrar desde otro teléfono, el JWT viejo puede seguir vivo
+        // unos minutos. No debe poder recrear la fila eliminada ni robarle el token FCM
+        // al dispositivo que ahora tiene la sesión.
+        await using var h = ServiceHarness.Create();
+        var user = await h.AddUserAsync("0999000003");
+
+        var anterior = await h.AddDeviceAsync(user.Id, fcmToken: "token-anterior", installationId: "viejo");
+        var actual = await h.AddDeviceAsync(user.Id, fcmToken: "token-actual", installationId: "actual");
+
+        h.Db.Devices.Remove(await h.Db.Devices.SingleAsync(d => d.Id == anterior.Id));
+        await h.Db.SaveChangesAsync();
+        h.Db.ChangeTracker.Clear();
+
+        var ex = await Assert.ThrowsAsync<UnauthorizedException>(
+            () => h.Devices.UpdateFcmTokenAsync(user.Id, anterior.Id,
+                new UpdateFcmTokenRequestDto("token-del-telefono-viejo")));
+
+        Assert.Equal("DEVICE_SESSION_REVOKED", ex.Code);
+
+        var sinCambios = await h.ReloadDeviceAsync(actual.Id);
+        Assert.Equal("token-actual", sinCambios!.FcmToken);
+        Assert.Null(await h.ReloadDeviceAsync(anterior.Id));
+    }
+
+    [Fact]
     public async Task UpdateFcmToken_SinDispositivoPrevioCreaElRegistro()
     {
         await using var h = ServiceHarness.Create();

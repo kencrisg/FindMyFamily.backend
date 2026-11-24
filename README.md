@@ -95,7 +95,7 @@ sequenceDiagram
 
 ### Esquema Relacional (PostgreSQL 17)
 - **`users`**: Identidad principal basada en número telefónico único y hash BCrypt.
-- **`devices`**: Múltiples dispositivos por usuario, token FCM y Refresh Token rotativo con expiración a 90 días.
+- **`devices`**: Un dispositivo por usuario: token FCM y Refresh Token rotativo con expiración a 90 días. Al cerrar sesión —o al iniciar sesión en otro teléfono— el registro anterior se elimina, y un teléfono que cambia de cuenta se reasigna al nuevo usuario.
 - **`families` & `family_members`**: Agrupación familiar con clave compuesta `(family_id, user_id)`.
 - **`locations`**: Registro de coordenadas con precisión `decimal(10, 8)` / `decimal(11, 8)` e índice compuesto `(user_id, captured_at)` para consultas de historial ultrarrápidas ($O(\log n)$).
 
@@ -111,6 +111,7 @@ sequenceDiagram
 | :--- | :---: | :--- | :---: | :--- |
 | **Auth** | `POST` | `/api/auth/login` | Público | Login con teléfono/contraseña; registra dispositivo y emite tokens |
 | **Auth** | `POST` | `/api/auth/refresh-token` | Público | Renovación de tokens mediante Refresh Token |
+| **Auth** | `POST` | `/api/auth/logout` | Autenticado | Elimina el dispositivo actual (o todos) de la tabla `devices` |
 | **Perfil** | `GET` | `/api/users/me` | Autenticado | Perfil del usuario, rol global y familias asociadas |
 | **Admin** | `POST` | `/api/users` | `admin` (Global) | Alta de usuario con asignación obligatoria a familia |
 | **Familias** | `GET` | `/api/families` | Autenticado | Familias del usuario (o todas si es Super Admin) |

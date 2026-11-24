@@ -4,6 +4,7 @@ using FindMyFamily.Core.Entities;
 using FindMyFamily.Core.Exceptions;
 using FindMyFamily.Core.Interfaces.Repositories;
 using FindMyFamily.Core.Interfaces.Services;
+using Microsoft.Extensions.Logging;
 
 namespace FindMyFamily.Core.Services;
 
@@ -17,6 +18,7 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
     private readonly IRefreshTokenHasher _refreshTokenHasher;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         IUserRepository userRepository,
@@ -24,7 +26,8 @@ public class AuthService : IAuthService
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         IJwtTokenGenerator jwtTokenGenerator,
-        IRefreshTokenHasher refreshTokenHasher)
+        IRefreshTokenHasher refreshTokenHasher,
+        ILogger<AuthService> logger)
     {
         _userRepository = userRepository;
         _deviceRepository = deviceRepository;
@@ -32,6 +35,7 @@ public class AuthService : IAuthService
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
         _refreshTokenHasher = refreshTokenHasher;
+        _logger = logger;
     }
 
     public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request, CancellationToken cancellationToken = default)
@@ -58,14 +62,14 @@ public class AuthService : IAuthService
         var refreshToken = _jwtTokenGenerator.GenerateRefreshToken();
         var refreshTokenExpiry = DateTime.UtcNow.Add(RefreshTokenLifetime);
 
-        // El dispositivo se identifica por su InstallationId, no por su modelo: dos teléfonos
-        // del mismo modelo son dos dispositivos distintos y deben mantener sesiones separadas.
-        Device? device = null;
-        if (!string.IsNullOrWhiteSpace(request.InstallationId))
-        {
-            device = await _deviceRepository.GetByInstallationIdAsync(
-                user.Id, request.InstallationId.Trim(), cancellationToken);
-        }
+        var installationId = string.IsNullOrWhiteSpace(request.InstallationId)
+            ? null
+            : request.InstallationId.Trim();
+
+        // Antes de crear la sesión se aplican las dos reglas de propiedad del dispositivo:
+        // un teléfono no puede estar vinculado a dos cuentas y una cuenta no puede tener
+        // dos teléfonos. Los registros que sobran se eliminan aquí mismo.
+        var device = await ReconcileDevicesAsync(user.Id, installationId, cancellationToken);
 
         if (device == null)
         {
@@ -73,7 +77,7 @@ public class AuthService : IAuthService
             {
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
-                InstallationId = request.InstallationId?.Trim(),
+                InstallationId = installationId,
                 DeviceModel = request.DeviceModel,
                 FcmToken = request.FcmToken,
                 RefreshTokenHash = _refreshTokenHasher.Hash(refreshToken),
@@ -173,7 +177,17 @@ public class AuthService : IAuthService
     {
         if (request.AllDevices)
         {
-            await _deviceRepository.DeactivateAllAsync(userId, cancellationToken);
+            var devices = await _deviceRepository.GetByUserIdAsync(userId, cancellationToken);
+            foreach (var currentDevice in devices)
+            {
+                _deviceRepository.Delete(currentDevice);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "El usuario {UserId} cerró sesión en todos sus dispositivos. Dispositivos eliminados de la tabla devices: {DeviceCount}.",
+                userId, devices.Count);
             return;
         }
 
@@ -193,28 +207,62 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Refresh token inválido.", "INVALID_REFRESH_TOKEN");
         }
 
-        RevokeDevice(device);
+        // Se elimina el registro, no se desactiva: un dispositivo con la sesión cerrada
+        // no debe seguir existiendo en la tabla. Antes bastaba desactivarlo, pero el
+        // registro (y su token FCM) seguía ahí y el backend podía intentar despertarlo.
+        var deviceId = device.Id;
+        var installationId = device.InstallationId;
+        _deviceRepository.Delete(device);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "El usuario {UserId} cerró sesión en el dispositivo {DeviceId} ({InstallationId}). Se eliminó su registro de la tabla devices.",
+            userId, deviceId, installationId ?? "sin InstallationId");
     }
 
-
     /// <summary>
-    /// Deja el dispositivo fuera de servicio al cerrar sesión.
-    ///
-    /// No basta con revocar el refresh token: mientras el dispositivo conserve su token FCM
-    /// y siga activo, el backend lo considera alcanzable. Un familiar pedía su ubicación, el
-    /// backend respondía REQUESTED y le enviaba el Silent Push, de modo que un teléfono con
-    /// la sesión cerrada **encendía el GPS** para luego no poder reportar nada (sin sesión,
-    /// el POST da 401). Se gastaba batería, se invadía la privacidad de quien ya había
-    /// salido, y el solicitante esperaba 30 segundos en vez de ver "no disponible".
+    /// Aplica las reglas de propiedad del dispositivo al iniciar sesión:
+    /// un teléfono pertenece a una sola cuenta y una cuenta tiene un solo teléfono.
+    /// Devuelve el registro que debe reutilizar esta sesión, o null si hay que crear uno.
     /// </summary>
-    private void RevokeDevice(Device device)
+    private async Task<Device?> ReconcileDevicesAsync(
+        Guid userId, string? installationId, CancellationToken cancellationToken)
     {
-        device.RefreshTokenHash = null;
-        device.RefreshTokenExpiry = null;
-        device.FcmToken = null;
-        device.IsActive = false;
-        _deviceRepository.Update(device);
+        Device? device = null;
+
+        if (installationId != null)
+        {
+            var linkedDevices = await _deviceRepository
+                .GetByInstallationIdAsync(installationId, cancellationToken);
+
+            device = linkedDevices.FirstOrDefault(d => d.UserId == userId);
+
+            // El teléfono ya estaba vinculado a otra cuenta. Sus credenciales y su token
+            // FCM dejan de ser válidos: se elimina ese registro antes de crear el nuevo.
+            foreach (var foreignDevice in linkedDevices.Where(d => d.UserId != userId))
+            {
+                _logger.LogInformation(
+                    "El dispositivo {InstallationId} estaba vinculado al usuario {PreviousUserId}. Se elimina ese registro porque ahora inicia sesión el usuario {UserId}.",
+                    installationId, foreignDevice.UserId, userId);
+                _deviceRepository.Delete(foreignDevice);
+            }
+        }
+
+        var previousDevices = await _deviceRepository.GetByUserIdAsync(userId, cancellationToken);
+
+        // La cuenta ya tenía otro teléfono: al iniciar sesión en este, el anterior se elimina.
+        foreach (var previousDevice in previousDevices.Where(d => d.Id != device?.Id))
+        {
+            _logger.LogInformation(
+                "El usuario {UserId} inició sesión en el dispositivo {NewInstallationId}. Se elimina el registro del dispositivo anterior {PreviousDeviceId} ({PreviousInstallationId}).",
+                userId,
+                installationId ?? "sin InstallationId",
+                previousDevice.Id,
+                previousDevice.InstallationId ?? "sin InstallationId");
+            _deviceRepository.Delete(previousDevice);
+        }
+
+        return device;
     }
 
     private static AuthResponseDto MapToAuthResponse(User user, Device device, string accessToken, string refreshToken, DateTime expiry)
