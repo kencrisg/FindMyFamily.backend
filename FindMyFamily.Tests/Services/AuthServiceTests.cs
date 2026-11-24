@@ -2,6 +2,7 @@ using FindMyFamily.Core.DTOs.Auth;
 using FindMyFamily.Core.Exceptions;
 using FindMyFamily.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FindMyFamily.Tests.Services;
 
@@ -94,22 +95,56 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task Login_DosDispositivosDelMismoModelo_MantienenSesionesSeparadas()
+    public async Task Login_EnUnSegundoDispositivo_EliminaElRegistroDelAnterior()
     {
-        // Esta es la regresión que motivó el campo InstallationId: antes el dispositivo se
-        // identificaba por su modelo, así que el segundo teléfono robaba la sesión al primero.
+        // Una cuenta tiene un solo teléfono: al entrar desde otro, el registro anterior
+        // se elimina para que el backend no siga considerándolo alcanzable.
         await using var h = ServiceHarness.Create();
-        await h.AddUserAsync("0999000001");
+        var user = await h.AddUserAsync("0999000001");
 
-        var primero = await h.Auth.LoginAsync(Login(installationId: "telefono-1", deviceModel: "Apple iPhone"));
-        var segundo = await h.Auth.LoginAsync(Login(installationId: "telefono-2", deviceModel: "Apple iPhone"));
+        var primero = await h.Auth.LoginAsync(Login(installationId: "telefono-1", fcmToken: "fcm-1"));
+        var segundo = await h.Auth.LoginAsync(Login(installationId: "telefono-2", fcmToken: "fcm-2"));
 
         Assert.NotEqual(primero.Device.Id, segundo.Device.Id);
-        Assert.Equal(2, await h.Db.Devices.CountAsync());
 
-        // El refresh token del primer teléfono sigue siendo válido.
-        var renovado = await h.Auth.RefreshTokenAsync(new RefreshTokenRequestDto(primero.RefreshToken, "telefono-1", null, null));
-        Assert.NotEmpty(renovado.AccessToken);
+        var device = Assert.Single(await h.ReloadDevicesOfUserAsync(user.Id));
+        Assert.Equal(segundo.Device.Id, device.Id);
+        Assert.Equal("telefono-2", device.InstallationId);
+
+        // El refresh token del teléfono reemplazado queda inservible.
+        var ex = await Assert.ThrowsAsync<UnauthorizedException>(
+            () => h.Auth.RefreshTokenAsync(new RefreshTokenRequestDto(primero.RefreshToken, "telefono-1", null, null)));
+        Assert.Equal("INVALID_REFRESH_TOKEN", ex.Code);
+
+        Assert.Contains(h.AuthLog.Entries, e =>
+            e.Level == LogLevel.Information
+            && e.Message.Contains("dispositivo anterior")
+            && e.Message.Contains("telefono-1")
+            && e.Message.Contains("telefono-2"));
+    }
+
+    [Fact]
+    public async Task Login_ConUnInstallationIdDeOtraCuenta_ReasignaElTelefono()
+    {
+        // Un teléfono no puede estar vinculado a dos usuarios. Si se inicia sesión con otra
+        // cuenta en la misma instalación, el registro del usuario anterior se elimina.
+        await using var h = ServiceHarness.Create();
+        var primero = await h.AddUserAsync("0999000001");
+        var segundo = await h.AddUserAsync("0999000002");
+
+        await h.Auth.LoginAsync(Login(phone: "0999000001", installationId: "telefono-compartido"));
+        var sesion = await h.Auth.LoginAsync(Login(phone: "0999000002", installationId: "telefono-compartido"));
+
+        Assert.Empty(await h.ReloadDevicesOfUserAsync(primero.Id));
+
+        var device = Assert.Single(await h.ReloadDevicesOfUserAsync(segundo.Id));
+        Assert.Equal(sesion.Device.Id, device.Id);
+        Assert.Equal("telefono-compartido", device.InstallationId);
+
+        Assert.Contains(h.AuthLog.Entries, e =>
+            e.Level == LogLevel.Information
+            && e.Message.Contains("estaba vinculado al usuario")
+            && e.Message.Contains("telefono-compartido"));
     }
 
     [Fact]
@@ -227,25 +262,26 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task Logout_DejaElDispositivoInalcanzableParaElSilentPush()
+    public async Task Logout_EliminaElDispositivoDeLaTablaDevices()
     {
-        // Revocar solo el refresh token no basta: con el token FCM intacto el backend
-        // seguía considerando alcanzable un teléfono con la sesión cerrada, le enviaba el
-        // push y le encendía el GPS para nada.
+        // Cerrar sesión debe borrar el registro, no solo desactivarlo: el backend no debe
+        // conservar ni el token FCM ni el refresh token de un teléfono que ya salió.
         await using var h = ServiceHarness.Create();
         var user = await h.AddUserAsync("0999000001");
         var sesion = await h.Auth.LoginAsync(Login(fcmToken: "fcm-activo"));
 
         await h.Auth.LogoutAsync(user.Id, new LogoutRequestDto(sesion.RefreshToken));
 
-        var device = Assert.Single(await h.ReloadDevicesOfUserAsync(user.Id));
-        Assert.Null(device.FcmToken);
-        Assert.False(device.IsActive);
-        Assert.Null(device.RefreshTokenHash);
+        Assert.Empty(await h.ReloadDevicesOfUserAsync(user.Id));
+
+        Assert.Contains(h.AuthLog.Entries, e =>
+            e.Level == LogLevel.Information
+            && e.Message.Contains("cerró sesión")
+            && e.Message.Contains(sesion.Device.Id.ToString()));
     }
 
     [Fact]
-    public async Task Logout_ConAllDevices_DejaTodosInalcanzables()
+    public async Task Logout_ConAllDevices_EliminaTodosLosDispositivos()
     {
         await using var h = ServiceHarness.Create();
         var user = await h.AddUserAsync("0999000001");
@@ -254,10 +290,13 @@ public class AuthServiceTests
 
         await h.Auth.LogoutAsync(user.Id, new LogoutRequestDto(null, AllDevices: true));
 
-        var devices = await h.ReloadDevicesOfUserAsync(user.Id);
-        Assert.Equal(2, devices.Count);
-        Assert.All(devices, d => Assert.Null(d.FcmToken));
-        Assert.All(devices, d => Assert.False(d.IsActive));
+        Assert.Empty(await h.ReloadDevicesOfUserAsync(user.Id));
+
+        Assert.Contains(h.AuthLog.Entries, e =>
+            e.Level == LogLevel.Information
+            && e.Message.Contains("todos sus dispositivos")
+            && e.Message.Contains("Dispositivos eliminados")
+            && e.Message.Contains(": 1."));
     }
 
     [Fact]

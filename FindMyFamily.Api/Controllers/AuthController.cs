@@ -45,9 +45,11 @@ public class AuthController : ApiControllerBase
     }
 
     /// <summary>
-    /// Revoca el refresh token del dispositivo actual, o el de todos los dispositivos
-    /// del usuario si se indica `allDevices`. Sin este endpoint, cerrar sesión en la app
-    /// solo borraba los tokens del teléfono y el refresh token seguía válido 90 días.
+    /// Cierra la sesión del dispositivo actual, o la de todos los dispositivos del usuario
+    /// si se indica `allDevices`. El registro correspondiente se elimina de la tabla
+    /// `devices`: un teléfono con la sesión cerrada no debe seguir siendo alcanzable por
+    /// Silent Push. Sin este endpoint, cerrar sesión en la app solo borraba los tokens del
+    /// teléfono y el refresh token seguía válido 90 días.
     /// </summary>
     [Authorize]
     [HttpPost("logout")]

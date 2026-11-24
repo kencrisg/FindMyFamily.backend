@@ -28,10 +28,18 @@ public class DeviceRepository : IDeviceRepository
             .FirstOrDefaultAsync(d => d.RefreshTokenHash == refreshTokenHash, cancellationToken);
     }
 
-    public async Task<Device?> GetByInstallationIdAsync(Guid userId, string installationId, CancellationToken cancellationToken = default)
+    public async Task<List<Device>> GetByInstallationIdAsync(string installationId, CancellationToken cancellationToken = default)
     {
         return await _context.Devices
-            .FirstOrDefaultAsync(d => d.UserId == userId && d.InstallationId == installationId, cancellationToken);
+            .Where(d => d.InstallationId == installationId)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Device>> GetByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Devices
+            .Where(d => d.UserId == userId)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<Device?> GetLatestActiveDeviceByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)

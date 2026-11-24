@@ -34,7 +34,19 @@ public class DeviceService : IDeviceService
         if (deviceId.HasValue)
         {
             device = await _deviceRepository.GetByIdAsync(deviceId.Value, cancellationToken);
-            if (device != null && device.UserId != userId)
+
+            // El JWT identifica un dispositivo concreto. Si su fila ya no existe es porque
+            // la sesión se cerró o se inició sesión en otro teléfono; sin esta guarda el
+            // código caía al "último dispositivo activo" y el teléfono viejo le robaba el
+            // token FCM al nuevo, además de resucitar el registro eliminado.
+            if (device == null)
+            {
+                throw new UnauthorizedException(
+                    "La sesión de este dispositivo ya no está activa. Inicia sesión nuevamente.",
+                    "DEVICE_SESSION_REVOKED");
+            }
+
+            if (device.UserId != userId)
             {
                 throw new ForbiddenException("No tienes permiso para modificar este dispositivo.", "FORBIDDEN");
             }

@@ -1,8 +1,31 @@
 using FindMyFamily.Core.DTOs.Locations;
 using FindMyFamily.Core.Entities;
 using FindMyFamily.Core.Interfaces.Services;
+using Microsoft.Extensions.Logging;
 
 namespace FindMyFamily.Tests.Infrastructure;
+
+/// <summary>
+/// Logger en memoria para comprobar que las acciones sensibles dejan rastro en el backend
+/// (por ejemplo, que se eliminó el dispositivo de una sesión anterior).
+/// </summary>
+public sealed class RecordingLogger<T> : ILogger<T>
+{
+    public record Entry(LogLevel Level, string Message);
+
+    public List<Entry> Entries { get; } = new();
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        Entries.Add(new Entry(logLevel, formatter(state, exception)));
+    }
+}
 
 /// <summary>
 /// Hasher determinista y rápido. BCrypt con factor de trabajo 12 tarda ~250 ms por hash:
